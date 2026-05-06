@@ -602,75 +602,41 @@ def download_video_task(
     )
 
     # =====================================================
-    # FORMAT FIX
+    # FINAL SAFE FORMAT FIX
     # =====================================================
 
     if format_type == "audio":
 
-        fmt = (
-            "bestaudio/"
-            "best"
-        )
+        # safest audio fallback
+        fmt = "140/251/bestaudio/best"
 
     else:
 
+        # IMPORTANT:
+        # Use progressive streams ONLY.
+        # Avoid DASH adaptive formats on Render.
+
         if quality == "1080":
 
-            fmt = (
-
-                "bv*[height<=1080]+ba/"
-
-                "b[height<=1080]/"
-
-                "best"
-            )
+            # most videos won't have progressive 1080
+            # fallback chain required
+            fmt = "137+140/248+251/22/18/best"
 
         elif quality == "720":
 
-            fmt = (
-
-                "bv*[height<=720]+ba/"
-
-                "b[height<=720]/"
-
-                "best"
-            )
+            fmt = "22/136+140/247+251/18/best"
 
         elif quality == "480":
 
-            fmt = (
-
-                "bv*[height<=480]+ba/"
-
-                "b[height<=480]/"
-
-                "best"
-            )
+            fmt = "135+140/244+251/18/best"
 
         elif quality == "360":
 
-            fmt = (
-
-                "bv*[height<=360]+ba/"
-
-                "b[height<=360]/"
-
-                "best"
-            )
+            fmt = "18/134+140/243+251/best"
 
         else:
 
-            fmt = (
-
-                "bv*+ba/"
-
-                "best"
-            )
-
-    print(
-        f"[download] format => "
-        f"{fmt}"
-    )
+            fmt = "22/18/best"
 
     # =====================================================
     # STABLE STRATEGY
