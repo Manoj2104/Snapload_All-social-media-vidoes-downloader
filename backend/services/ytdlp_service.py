@@ -236,7 +236,9 @@ def extract_metadata(url):
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            # For YouTube, we use process=False to ensure it NEVER tries to validate formats
+            # during the analyze phase. This makes it extremely fast and stable.
+            info = ydl.extract_info(url, download=False, process=(not is_youtube))
 
             # extract_flat on a playlist gives entries[];
             # on a single video it returns the video dict.
