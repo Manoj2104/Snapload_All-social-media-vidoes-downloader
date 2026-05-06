@@ -14,44 +14,36 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 # ---------------------------------------------------------------------------
 def _init_cookies() -> str | None:
     writable = os.path.join(DOWNLOAD_DIR, "yt_cookies.txt")
+    
+    # 1. PRIORITY: Raw cookie text from environment (Best for Render)
+    content = os.environ.get("YT_COOKIES_CONTENT", "").strip()
+    if content:
+        try:
+            if not content.startswith("# Netscape"):
+                content = "# Netscape HTTP Cookie File\n" + content
+            with open(writable, "w", encoding="utf-8") as f:
+                f.write(content)
+            print(f"[cookies] ✅ Fresh cookies written from YT_COOKIES_CONTENT ({os.path.getsize(writable)} bytes)")
+            return writable
+        except Exception as e:
+            print(f"[cookies] ❌ Env write failed: {e}")
 
-    # Already copied and ready
-    if os.path.isfile(writable) and os.path.getsize(writable) > 100:
-        print(f"[cookies] ✅ Using cached cookies ({os.path.getsize(writable)} bytes)")
-        return writable
-
-    # Copy from Render Secret File (read-only) → writable downloads dir
+    # 2. FALLBACK: Render Secret File
     env_path = os.environ.get("YT_COOKIES_FILE", "").strip()
     if env_path and os.path.isfile(env_path):
         try:
             shutil.copy2(env_path, writable)
-            print(f"[cookies] ✅ Copied {env_path} → {writable} ({os.path.getsize(writable)} bytes)")
+            print(f"[cookies] ✅ Copied from secret file: {env_path}")
             return writable
         except Exception as e:
-            print(f"[cookies] ❌ Copy failed: {e}")
+            print(f"[cookies] ❌ Secret copy failed: {e}")
 
-    # Raw cookie text in env var
-    content = os.environ.get("YT_COOKIES_CONTENT", "").strip()
-    if content:
-        try:
-            # Ensure the Netscape header is present
-            if not content.startswith("# Netscape"):
-                content = "# Netscape HTTP Cookie File\n" + content
-            
-            with open(writable, "w", encoding="utf-8") as f:
-                f.write(content)
-            print(f"[cookies] ✅ Written to {writable} ({os.path.getsize(writable)} bytes)")
-            return writable
-        except Exception as e:
-            print(f"[cookies] ❌ Write failed: {e}")
+    # 3. FALLBACK: Cache
+    if os.path.isfile(writable) and os.path.getsize(writable) > 100:
+        print(f"[cookies] ✅ Using existing cache ({os.path.getsize(writable)} bytes)")
+        return writable
 
-    # Local dev fallback
-    for p in ["cookies.txt", os.path.join(os.getcwd(), "cookies.txt")]:
-        if os.path.isfile(p):
-            print(f"[cookies] ✅ Using local {p}")
-            return p
-
-    print("[cookies] ⚠️  No cookies — YouTube will block this IP!")
+    print("[cookies] ⚠️ No cookies found!")
     return None
 
 _COOKIES_FILE: str | None = _init_cookies()
