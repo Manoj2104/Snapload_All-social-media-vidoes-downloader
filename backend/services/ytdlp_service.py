@@ -89,10 +89,13 @@ PROXY = os.environ.get("YT_PROXY", "").strip()
 # - web kept as fallback
 # =========================================================
 
-def get_common_opts():
+def get_common_opts(is_youtube=True):
+    # Support for PO Token (Proof of Origin) — set these in Render Env Vars
+    po_token = os.environ.get("YT_PO_TOKEN")
+    visitor_data = os.environ.get("YT_VISITOR_DATA")
 
     opts = {
-        "quiet":               False,
+        "quiet":               True,
         "no_warnings":         True,
         "nocheckcertificate":  True,
         "ignoreerrors":        False,
@@ -106,22 +109,28 @@ def get_common_opts():
         "max_sleep_interval":  3,
         "http_headers": {
             "User-Agent": (
-                "Mozilla/5.0 "
-                "(Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 "
-                "(KHTML, like Gecko) "
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/124.0.0.0 Safari/537.36"
             ),
             "Accept-Language": "en-US,en;q=0.9",
         },
-        # ios = no JS runtime needed, bypasses bot checks
-        # web = fallback for platforms ios doesn't cover
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["ios", "web"]
-            }
-        },
     }
+
+    if is_youtube:
+        # We prioritize high-trust clients that bypass bot detection and n-sig challenges
+        yt_args = {
+            "player_client": ["ios", "web_creator", "tv_embedded", "android"],
+            # Ensure we don't skip manifests if a PO Token is provided
+            "skip": ["hls", "dash"] if not po_token else [],
+        }
+        
+        if po_token:
+            yt_args["po_token"] = [f"web+{po_token}", f"ios+{po_token}"]
+        if visitor_data:
+            yt_args["visitor_data"] = visitor_data
+            
+        opts["extractor_args"] = {"youtube": yt_args}
 
     if COOKIE_FILE and os.path.isfile(COOKIE_FILE):
         opts["cookiefile"] = COOKIE_FILE
@@ -144,9 +153,9 @@ def get_common_opts():
 # This is the correct separation of concerns.
 # =========================================================
 
-def get_metadata_opts():
+def get_metadata_opts(is_youtube=True):
 
-    opts = get_common_opts()
+    opts = get_common_opts(is_youtube)
 
     # extract_flat=True on a single video URL:
     # fetches basic info, skips format listing completely.
@@ -222,8 +231,8 @@ def progress_hook(job_id):
 # =========================================================
 
 def extract_metadata(url):
-
-    opts = get_metadata_opts()
+    is_youtube = "youtube.com" in url or "youtu.be" in url
+    opts = get_metadata_opts(is_youtube)
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
@@ -355,7 +364,8 @@ def download_video_task(
     print(f"[download] format: {fmt}")
     print(f"[download] cookies: {COOKIE_FILE or 'NONE'}")
 
-    opts = get_common_opts()
+    is_youtube = "youtube.com" in url or "youtu.be" in url
+    opts = get_common_opts(is_youtube)
 
     opts.update({
         "format":              fmt,
