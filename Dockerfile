@@ -1,126 +1,44 @@
-# =========================================================
-# SNAPLOAD
-# SINGLE CONTAINER
-# FASTAPI + NEXTJS STATIC
-# =========================================================
-
-# =========================================================
-# STAGE 1
-# BUILD FRONTEND
-# =========================================================
-
+# SnapLoad — Single Container: FastAPI (backend) + Next.js static (frontend)
+# Stage 1: Build the Next.js frontend
 FROM node:20-slim AS frontend-builder
-
 WORKDIR /frontend
 
-# =========================================================
-# INSTALL FRONTEND DEPENDENCIES
-# =========================================================
-
+# Copy frontend source
 COPY frontend/package*.json ./
-
 RUN npm install
 
-# =========================================================
-# COPY FRONTEND SOURCE
-# =========================================================
-
+# Copy rest of frontend
 COPY frontend/ ./
 
-# =========================================================
-# BUILD STATIC EXPORT
-# =========================================================
-
+# Build as static export
+# NEXT_PUBLIC_API_URL is empty so all /api/* calls are relative (same origin)
 ENV NEXT_PUBLIC_API_URL=""
-
 RUN npm run build
 
-# =========================================================
-# STAGE 2
-# PYTHON BACKEND
-# =========================================================
-
+# Stage 2: Python backend + serve frontend static files
 FROM python:3.11-slim
-
 WORKDIR /app
 
-# =========================================================
-# INSTALL SYSTEM PACKAGES
-# =========================================================
-# ffmpeg  -> audio/video merge
-# nodejs  -> youtube js challenge
-# npm     -> node runtime support
-# curl    -> debugging
-# =========================================================
-
+# Install system deps — FFmpeg is required for yt-dlp merging, nodejs for YouTube n-sig decryption
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ffmpeg \
-    curl \
-    nodejs \
-    npm \
-    && rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends ffmpeg curl nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
-# =========================================================
-# VERIFY NODE INSTALL
-# =========================================================
-
-RUN node -v
-
-# =========================================================
-# COPY REQUIREMENTS
-# =========================================================
-
-COPY backend/requirements.txt ./requirements.txt
-
-# =========================================================
-# INSTALL PYTHON PACKAGES
-# =========================================================
-
-RUN pip install --upgrade pip
-
+# Install Python dependencies
+COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# =========================================================
-# VERIFY YT-DLP
-# =========================================================
-
-RUN python -m yt_dlp --version
-
-# =========================================================
-# COPY BACKEND
-# =========================================================
-
+# Copy backend source code
 COPY backend/ ./
 
-# =========================================================
-# COPY BUILT FRONTEND
-# =========================================================
-
+# Copy the built frontend static files into backend/static/
 COPY --from=frontend-builder /frontend/out ./static/
 
-# =========================================================
-# CREATE DOWNLOADS
-# =========================================================
-
+# Create downloads directory
 RUN mkdir -p downloads
 
-# =========================================================
-# ENVIRONMENT
-# =========================================================
-
-ENV PYTHONUNBUFFERED=1
-
-ENV PORT=8000
-
-# =========================================================
-# EXPOSE
-# =========================================================
-
+# Expose port (Render injects $PORT)
 EXPOSE 8000
 
-# =========================================================
-# START FASTAPI
-# =========================================================
-
+# Start FastAPI — it will serve the frontend from /static
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
