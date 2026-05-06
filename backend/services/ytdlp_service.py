@@ -53,11 +53,13 @@ _COOKIES_FILE: str | None = _init_cookies()
 # ---------------------------------------------------------------------------
 
 def _base_opts(extra: dict | None = None) -> dict:
+    proxy = os.environ.get("YT_PROXY")
     opts = {
         "quiet": True,
         "no_warnings": True,
         "nocheckcertificate": True,
         "source_address": "0.0.0.0",
+        "proxy": proxy if proxy else None,
         "impersonate": ImpersonateTarget(client="chrome"),
         "force_ipv4": True,
         "http_headers": {
