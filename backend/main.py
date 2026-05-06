@@ -44,3 +44,16 @@ else:
     @app.get("/")
     def read_root():
         return {"status": "SnapLoad API is running (Backend only)", "version": "1.0.0"}
+
+@app.get("/debug-cookies")
+def debug_cookies():
+    import os
+    return {
+        "YT_COOKIES_FILE_env": os.environ.get("YT_COOKIES_FILE"),
+        "YT_COOKIES_CONTENT_env": "SET" if os.environ.get("YT_COOKIES_CONTENT") else "NOT SET",
+        "env_path_exists": os.path.isfile(os.environ.get("YT_COOKIES_FILE", "")),
+        "downloads_dir": os.listdir("downloads"),
+        "yt_cookies_exists": os.path.isfile("downloads/yt_cookies.txt"),
+        "yt_cookies_size": os.path.getsize("downloads/yt_cookies.txt") if os.path.isfile("downloads/yt_cookies.txt") else 0,
+        "cwd": os.getcwd(),
+    }
