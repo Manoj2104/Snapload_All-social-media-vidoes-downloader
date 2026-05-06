@@ -19,9 +19,9 @@ def extract_metadata(url: str):
         'no_warnings': True,
         'nocheckcertificate': True,
         'source_address': '0.0.0.0',
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'impersonate': ImpersonateTarget(client='chrome'),
         'js_runtimes': {'node': {}},
+        'force_ipv4': True,
     }
 
     attempts = [{}]
@@ -32,8 +32,7 @@ def extract_metadata(url: str):
         if is_youtube:
             opts['extractor_args'] = {
                 'youtube': {
-                    'player_client': ['android', 'ios'],
-                    'player_skip': ['webpage', 'configs', 'js']
+                    'player_client': ['ios', 'android', 'tv', 'web_creator', 'mweb']
                 }
             }
         
@@ -131,9 +130,9 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
         'sleep_interval_fr_base': 1, # Small sleep between fragments
         'buffersize': 1024 * 1024,
         'socket_timeout': 30,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'impersonate': ImpersonateTarget(client='chrome'),
         'js_runtimes': {'node': {}},
+        'force_ipv4': True,
         'merge_output_format': 'mp4' if format_type != 'audio' else None,
         'nopart': True,
         'fixup': 'warn',
@@ -160,8 +159,7 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
         if is_youtube:
             opts['extractor_args'] = {
                 'youtube': {
-                    'player_client': ['android', 'ios'],
-                    'player_skip': ['webpage', 'configs', 'js']
+                    'player_client': ['ios', 'android', 'tv', 'web_creator', 'mweb']
                 }
             }
         try:
