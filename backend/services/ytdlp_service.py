@@ -334,16 +334,34 @@ def download_video_task(
         fmt = "bestaudio/best"
     else:
         # Use a cascade that handles both DASH/HLS and progressive formats
-        fmt = f"bestvideo[height<={res_val}]+bestaudio/best[height<={res_val}]/best"
+        fmt = (
+        f"best[height<={res_val}][ext=mp4]/"
+        f"best[height<={res_val}]/"
+        f"best"
+    )
 
     # 2. Strategy Loop for Download
     # web_creator/ios combination is best for high resolution + stability
     is_youtube = "youtube.com" in url or "youtu.be" in url
     strategies = [
-        {"extractor_args": {"youtube": {"player_client": ["web_creator", "ios"]}}},
-        {"extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
-        {"extractor_args": {"youtube": {"player_client": ["android"]}}},
-    ] if is_youtube else [{}]
+
+        {
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["ios"]
+                }
+            }
+        },
+
+        {
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android"]
+                }
+            }
+        }
+
+    ]if is_youtube else [{}]
 
     success = False
     last_error = None
