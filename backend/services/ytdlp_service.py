@@ -335,8 +335,8 @@ def download_video_task(
     else:
         # Use a cascade that handles both DASH/HLS and progressive formats
         fmt = (
-        f"best[height<={res_val}][ext=mp4]/"
-        f"best[height<={res_val}]/"
+        f"bv*[height<={res_val}]+ba/"
+        f"b[height<={res_val}]/"
         f"best"
     )
 
@@ -367,16 +367,81 @@ def download_video_task(
     last_error = None
 
     for strategy in strategies:
-        opts = get_common_opts(is_youtube, is_download=True)
+
+        opts = get_common_opts(
+            is_youtube,
+            is_download=True
+        )
+
         opts.update(strategy)
+
         opts.update({
-            "format":              fmt,
-            "outtmpl":             output_template,
-            "progress_hooks":      [progress_hook(job_id)],
-            "nopart":              True,
-            "continuedl":          True,
-            "overwrites":          True,
-            "merge_output_format": "mp4" if format_type != "audio" else None,
+
+            # =================================================
+            # FINAL STABLE FORMAT FIX
+            # =================================================
+
+            "format": fmt,
+
+            # =================================================
+            # OUTPUT
+            # =================================================
+
+            "outtmpl": output_template,
+
+            # =================================================
+            # DOWNLOAD PROGRESS
+            # =================================================
+
+            "progress_hooks": [
+                progress_hook(job_id)
+            ],
+
+            # =================================================
+            # DOWNLOAD SETTINGS
+            # =================================================
+
+            "nopart": True,
+
+            "continuedl": True,
+
+            "overwrites": True,
+
+            # =================================================
+            # FORCE FINAL VIDEO FORMAT
+            # =================================================
+
+            "merge_output_format": (
+                "mp4"
+                if format_type != "audio"
+                else None
+            ),
+
+            # =================================================
+            # FORMAT PRIORITY
+            # =================================================
+
+            "format_sort": [
+
+                # prefer requested resolution
+                "res",
+
+                # prefer h264 codec
+                "codec:h264",
+
+                # prefer mp4+m4a combo
+                "ext:mp4:m4a"
+            ],
+
+            # =================================================
+            # YOUTUBE STABILITY
+            # =================================================
+
+            "noplaylist": True,
+
+            "extract_flat": False,
+
+            "allow_unplayable_formats": False,
         })
 
         if format_type == "audio":
