@@ -144,57 +144,51 @@ def _format_str(format_type: str, res: int) -> str:
 
 def extract_metadata(url: str):
     is_youtube = "youtube.com" in url or "youtu.be" in url
-    base = _base_opts({"skip_download": True})
+    opts = _base_opts({"skip_download": True})
+    
+    if is_youtube:
+        opts["extractor_args"] = {
+            "youtube": {
+                "player_client": ["web", "ios"],
+                "skip": [],
+            }
+        }
+    
+    if _COOKIES_FILE and os.path.isfile(_COOKIES_FILE):
+        opts["cookiefile"] = _COOKIES_FILE
 
-    # Strategies to try in order
-    # Since cookies are working, 'web' is the best choice for formats.
-    strategies = [
-        {"extractor_args": {"youtube": {"player_client": ["web"]}}},
-        {"extractor_args": {"youtube": {"player_client": ["ios", "web_creator"]}}},
-        {"extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
-    ] if is_youtube else [{}]
-
-    last_error = None
-    for strategy in strategies:
-        opts = {**base, **strategy}
-        if _COOKIES_FILE and os.path.isfile(_COOKIES_FILE):
-            opts["cookiefile"] = _COOKIES_FILE
-        
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                formats = []
-                for f in info.get("formats", []):
-                    if f.get("vcodec") != "none" and f.get("height"):
-                        formats.append({
-                            "format_id": f.get("format_id"),
-                            "resolution": f.get("format_note", f"{f.get('height')}p"),
-                            "ext": f.get("ext"),
-                            "type": "video",
-                        })
-                    elif f.get("acodec") != "none" and f.get("vcodec") == "none":
-                        formats.append({
-                            "format_id": f.get("format_id"),
-                            "resolution": "audio",
-                            "ext": f.get("ext"),
-                            "type": "audio",
-                        })
-                return {
-                    "title": info.get("title", "Unknown Title"),
-                    "thumbnail": info.get("thumbnail", ""),
-                    "duration": info.get("duration", 0),
-                    "channel": info.get("uploader", ""),
-                    "views": info.get("view_count", 0),
-                    "formats": formats,
-                    "platform": info.get("extractor_key", ""),
-                }
-        except Exception as e:
-            last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", str(e))
-            print(f"[extract_metadata] strategy failed: {last_error}")
-            if "sign in" not in last_error.lower() and "bot" not in last_error.lower():
-                break # if it's not a bot error, stop trying strategies
-
-    raise Exception(last_error or "Extraction failed")
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            formats = []
+            for f in info.get("formats", []):
+                if f.get("vcodec") != "none" and f.get("height"):
+                    formats.append({
+                        "format_id": f.get("format_id"),
+                        "resolution": f.get("format_note", f"{f.get('height')}p"),
+                        "ext": f.get("ext"),
+                        "type": "video",
+                    })
+                elif f.get("acodec") != "none" and f.get("vcodec") == "none":
+                    formats.append({
+                        "format_id": f.get("format_id"),
+                        "resolution": "audio",
+                        "ext": f.get("ext"),
+                        "type": "audio",
+                    })
+            return {
+                "title": info.get("title", "Unknown Title"),
+                "thumbnail": info.get("thumbnail", ""),
+                "duration": info.get("duration", 0),
+                "channel": info.get("uploader", ""),
+                "views": info.get("view_count", 0),
+                "formats": formats,
+                "platform": info.get("extractor_key", ""),
+            }
+    except Exception as e:
+        err = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", str(e))
+        print(f"[extract_metadata] failed: {err}")
+        raise Exception(err)
 
 
 # ---------------------------------------------------------------------------
