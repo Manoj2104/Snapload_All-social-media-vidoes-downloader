@@ -246,7 +246,20 @@ def download_video_task(job_id, url, format_type, quality):
     )
 
     if format_type == "audio":
-        selected_format = "bestaudio/best"
+        fmt = "bestaudio/best"
+
+    else:
+        quality_map = {
+            "4k": "bestvideo[height<=2160]+bestaudio/best",
+            "1080p": "bestvideo[height<=1080]+bestaudio/best",
+            "720p": "bestvideo[height<=720]+bestaudio/best",
+            "480p": "bestvideo[height<=480]+bestaudio/best",
+        }
+
+        fmt = quality_map.get(
+            quality.lower(),
+            "bestvideo+bestaudio/best"
+        )
 
     opts = get_common_opts()
 
