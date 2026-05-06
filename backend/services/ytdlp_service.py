@@ -38,8 +38,9 @@ def _youtube_opts(base: dict) -> dict:
     
     # Core YouTube Extractor Args
     yt_args = {
-        # tv_embedded + ios combination bypasses bot checks most reliably
-        "player_client": ["tv_embedded", "ios", "android", "web_creator"],
+        # ios + web_creator is currently the most robust combination for Render
+        "player_client": ["ios", "web_creator", "tv_embedded", "android"],
+        "prefer_requests": True,
     }
 
     # Add PO Token support if provided
@@ -96,13 +97,13 @@ def extract_metadata(url: str):
     base = _base_opts({"skip_download": True})
 
     # We try three strategies:
-    #   1. tv_embedded + ios (stealthiest)
-    #   2. android + web_creator
-    #   3. web client (requires cookies/PO token)
+    #   1. ios (most trusted mobile client)
+    #   2. web_creator (trusted creator client)
+    #   3. tv_embedded (fallback)
     attempt_overrides = [
         {},   # Default (uses _youtube_opts)
-        {"extractor_args": {"youtube": {"player_client": ["android", "web_creator"]}}} if is_youtube else {},
-        {"extractor_args": {"youtube": {"player_client": ["web"]}}} if is_youtube else {},
+        {"extractor_args": {"youtube": {"player_client": ["web_creator"]}}} if is_youtube else {},
+        {"extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}} if is_youtube else {},
     ]
 
     last_error = None
