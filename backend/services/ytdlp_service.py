@@ -295,13 +295,7 @@ def extract_metadata(url):
 
     opts = get_common_opts()
 
-    opts.update({
-
-        "skip_download": True,
-
-        # IMPORTANT
-        "format": "best",
-    })
+    opts["skip_download"] = True
 
     try:
 
@@ -316,80 +310,30 @@ def extract_metadata(url):
 
             for f in info.get("formats", []):
 
-                # video
                 if (
                     f.get("vcodec") != "none"
                     and f.get("height")
                 ):
 
                     formats.append({
-
-                        "format_id":
-                        f.get("format_id"),
-
-                        "resolution":
-                        f"{f.get('height')}p",
-
-                        "ext":
-                        f.get("ext"),
-
-                        "type":
-                        "video",
-                    })
-
-                # audio
-                elif (
-                    f.get("acodec") != "none"
-                    and f.get("vcodec") == "none"
-                ):
-
-                    formats.append({
-
-                        "format_id":
-                        f.get("format_id"),
-
-                        "resolution":
-                        "audio",
-
-                        "ext":
-                        f.get("ext"),
-
-                        "type":
-                        "audio",
+                        "format_id": f.get("format_id"),
+                        "resolution": f"{f.get('height')}p",
+                        "ext": f.get("ext"),
+                        "type": "video",
                     })
 
             return {
-
-                "title":
-                info.get("title"),
-
-                "thumbnail":
-                info.get("thumbnail"),
-
-                "duration":
-                info.get("duration"),
-
-                "channel":
-                info.get("uploader"),
-
-                "views":
-                info.get("view_count"),
-
-                "formats":
-                formats,
+                "title": info.get("title"),
+                "thumbnail": info.get("thumbnail"),
+                "duration": info.get("duration"),
+                "channel": info.get("uploader"),
+                "views": info.get("view_count"),
+                "formats": formats,
             }
 
     except Exception as e:
 
-        err = re.sub(
-            r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
-            "",
-            str(e)
-        )
-
-        print(f"[metadata error] {err}")
-
-        raise Exception(err)
+        raise Exception(str(e))
 
 # =========================================================
 # FIND FILE
