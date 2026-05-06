@@ -2,6 +2,8 @@ import yt_dlp
 import os
 import re
 import shutil
+import time
+
 from services.redis_service import redis_client
 
 # =========================================================
@@ -9,7 +11,11 @@ from services.redis_service import redis_client
 # =========================================================
 
 DOWNLOAD_DIR = os.path.abspath("downloads")
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+os.makedirs(
+    DOWNLOAD_DIR,
+    exist_ok=True
+)
 
 # =========================================================
 # COOKIE SETUP
@@ -28,7 +34,10 @@ def init_cookies():
         and os.path.getsize(writable_cookie) > 100
     ):
 
-        print(f"[cookies] loaded: {writable_cookie}")
+        print(
+            f"[cookies] loaded: "
+            f"{writable_cookie}"
+        )
 
         return writable_cookie
 
@@ -51,15 +60,18 @@ def init_cookies():
             )
 
             print(
-                f"[cookies] copied from render secret: "
-                f"{writable_cookie}"
+                "[cookies] copied "
+                "from render secret"
             )
 
             return writable_cookie
 
         except Exception as e:
 
-            print(f"[cookies] copy failed: {e}")
+            print(
+                f"[cookies] copy failed: "
+                f"{e}"
+            )
 
     # raw env content
     env_cookie_content = os.environ.get(
@@ -77,41 +89,50 @@ def init_cookies():
                 encoding="utf-8"
             ) as f:
 
-                f.write(env_cookie_content)
+                f.write(
+                    env_cookie_content
+                )
 
             print(
-                f"[cookies] loaded from env content"
+                "[cookies] loaded "
+                "from env content"
             )
 
             return writable_cookie
 
         except Exception as e:
 
-            print(f"[cookies] write failed: {e}")
+            print(
+                f"[cookies] write failed: "
+                f"{e}"
+            )
 
     # local fallback
-    local_cookie = "cookies.txt"
-
-    if os.path.isfile(local_cookie):
+    if os.path.isfile("cookies.txt"):
 
         try:
 
             shutil.copy2(
-                local_cookie,
+                "cookies.txt",
                 writable_cookie
             )
 
-            print("[cookies] local loaded")
+            print(
+                "[cookies] local loaded"
+            )
 
             return writable_cookie
 
         except Exception as e:
 
-            print(f"[cookies] local failed: {e}")
+            print(
+                f"[cookies] local failed: "
+                f"{e}"
+            )
 
     print(
         "[cookies] WARNING: "
-        "no cookies found"
+        "No cookies found"
     )
 
     return None
@@ -175,12 +196,14 @@ def get_common_opts():
             "en-US,en;q=0.9",
         },
 
-        # ONLY WEB CLIENT
+        # stable youtube client
         "extractor_args": {
 
             "youtube": {
 
                 "player_client": [
+                    "android",
+                    "tv_embedded",
                     "web"
                 ]
             }
@@ -233,7 +256,9 @@ def cleanup_downloads():
 
         except Exception as e:
 
-            print(f"[cleanup] {e}")
+            print(
+                f"[cleanup] {e}"
+            )
 
 # =========================================================
 # PROGRESS HOOK
@@ -259,8 +284,10 @@ def progress_hook(job_id):
                 )
 
                 value = float(
-                    clean.replace("%", "")
-                    .strip()
+                    clean.replace(
+                        "%",
+                        ""
+                    ).strip()
                 )
 
                 redis_client.hset(
@@ -291,7 +318,7 @@ def extract_metadata(url):
     opts = get_common_opts()
 
     # IMPORTANT
-    # Avoid format validation
+    # avoid format validation
     opts["extract_flat"] = True
 
     try:
@@ -306,39 +333,69 @@ def extract_metadata(url):
             return {
 
                 "title":
-                info.get("title", "Unknown"),
+                info.get(
+                    "title",
+                    "Unknown"
+                ),
 
                 "thumbnail":
-                info.get("thumbnail", ""),
+                info.get(
+                    "thumbnail",
+                    ""
+                ),
 
                 "duration":
-                info.get("duration", 0),
+                info.get(
+                    "duration",
+                    0
+                ),
 
                 "channel":
-                info.get("uploader", ""),
+                info.get(
+                    "uploader",
+                    ""
+                ),
 
                 "views":
-                info.get("view_count", 0),
+                info.get(
+                    "view_count",
+                    0
+                ),
 
                 # STATIC SAFE FORMATS
                 "formats": [
 
                     {
-                        "resolution": "720p",
-                        "ext": "mp4",
-                        "type": "video",
+                        "resolution":
+                        "720p",
+
+                        "ext":
+                        "mp4",
+
+                        "type":
+                        "video",
                     },
 
                     {
-                        "resolution": "360p",
-                        "ext": "mp4",
-                        "type": "video",
+                        "resolution":
+                        "360p",
+
+                        "ext":
+                        "mp4",
+
+                        "type":
+                        "video",
                     },
 
                     {
-                        "resolution": "audio",
-                        "ext": "mp3",
-                        "type": "audio",
+                        "resolution":
+                        "audio",
+
+                        "ext":
+                        "mp3",
+
+                        "type":
+                        "audio",
                     }
                 ]
             }
@@ -351,7 +408,10 @@ def extract_metadata(url):
             str(e)
         )
 
-        print(f"[metadata error] {err}")
+        print(
+            f"[metadata error] "
+            f"{err}"
+        )
 
         raise Exception(err)
 
@@ -401,6 +461,11 @@ def download_video_task(
 
         COOKIE_FILE = init_cookies()
 
+    is_youtube = (
+        "youtube.com" in url
+        or "youtu.be" in url
+    )
+
     ext = (
         "mp3"
         if format_type == "audio"
@@ -413,129 +478,204 @@ def download_video_task(
     )
 
     # =====================================================
-    # SAFE FORMAT
+    # STABLE FORMAT
     # =====================================================
 
     if format_type == "audio":
 
-        # direct audio format
-        fmt = "140/251/bestaudio"
+        fmt = (
+            "140/"
+            "251/"
+            "bestaudio/"
+            "best"
+        )
 
     else:
 
-        # SAFE merged formats only
-        # 18 = 360p mp4
-        # 22 = 720p mp4
-        fmt = "22/18/best"
-
-    print(f"[download] format: {fmt}")
+        fmt = (
+            "22/"
+            "18/"
+            "best[ext=mp4]/"
+            "best"
+        )
 
     print(
-        f"[download] cookies: "
+        f"[download] format => "
+        f"{fmt}"
+    )
+
+    print(
+        f"[download] cookies => "
         f"{COOKIE_FILE or 'NONE'}"
     )
 
-    opts = get_common_opts()
-
-    opts.update({
-
-        "format": fmt,
-
-        "outtmpl": output_template,
-
-        "progress_hooks": [
-            progress_hook(job_id)
-        ],
-
-        "nopart": True,
-
-        "continuedl": True,
-
-        "overwrites": True,
-    })
+    last_error = None
 
     # =====================================================
-    # AUDIO POSTPROCESS
+    # MULTI CLIENT FALLBACK
     # =====================================================
 
-    if format_type == "audio":
+    client_strategies = [
 
-        opts["postprocessors"] = [{
+        "tv_embedded",
 
-            "key":
-            "FFmpegExtractAudio",
+        "android",
 
-            "preferredcodec":
-            "mp3",
+        "ios",
 
-            "preferredquality":
-            "192",
-        }]
+        "web"
+    ]
 
-    # =====================================================
-    # DOWNLOAD
-    # =====================================================
+    for client in client_strategies:
 
-    try:
+        try:
 
-        with yt_dlp.YoutubeDL(opts) as ydl:
-
-            ydl.download([url])
-
-        final_file = find_downloaded_file(
-            job_id,
-            ".mp3" if format_type == "audio"
-            else ".mp4"
-        )
-
-        if not final_file:
-
-            raise Exception(
-                "Downloaded file not found"
+            print(
+                f"[download] trying client => "
+                f"{client}"
             )
 
-        redis_client.hset(
+            opts = get_common_opts()
 
-            f"job:{job_id}",
+            # youtube specific
+            if is_youtube:
 
-            mapping={
+                opts["extractor_args"] = {
 
-                "status":
-                "completed",
+                    "youtube": {
 
-                "progress":
-                "100",
+                        "player_client": [
+                            client
+                        ]
+                    }
+                }
 
-                "downloadUrl":
-                final_file,
-            }
-        )
+            opts.update({
 
-        print(
-            f"[download completed] "
-            f"{final_file}"
-        )
+                "format": fmt,
 
-    except Exception as e:
+                "format_sort": [
+                    "res",
+                    "ext:mp4:m4a"
+                ],
 
-        err = re.sub(
-            r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
-            "",
-            str(e)
-        )
+                "outtmpl":
+                output_template,
 
-        print(f"[download error] {err}")
+                "progress_hooks": [
+                    progress_hook(job_id)
+                ],
 
-        redis_client.hset(
+                "nopart": True,
 
-            f"job:{job_id}",
+                "continuedl": True,
 
-            mapping={
+                "overwrites": True,
 
-                "status":
-                "failed",
+                "noplaylist": True,
+            })
 
-                "error":
-                err,
-            }
-        )
+            # =================================================
+            # AUDIO CONVERT
+            # =================================================
+
+            if format_type == "audio":
+
+                opts["postprocessors"] = [{
+
+                    "key":
+                    "FFmpegExtractAudio",
+
+                    "preferredcodec":
+                    "mp3",
+
+                    "preferredquality":
+                    "192",
+                }]
+
+            # =================================================
+            # DOWNLOAD
+            # =================================================
+
+            with yt_dlp.YoutubeDL(opts) as ydl:
+
+                ydl.download([url])
+
+            final_file = find_downloaded_file(
+
+                job_id,
+
+                ".mp3"
+                if format_type == "audio"
+                else ".mp4"
+            )
+
+            if not final_file:
+
+                raise Exception(
+                    "Downloaded file not found"
+                )
+
+            redis_client.hset(
+
+                f"job:{job_id}",
+
+                mapping={
+
+                    "status":
+                    "completed",
+
+                    "progress":
+                    "100",
+
+                    "downloadUrl":
+                    final_file,
+                }
+            )
+
+            print(
+                f"[download completed] "
+                f"{final_file}"
+            )
+
+            return
+
+        except Exception as e:
+
+            err = re.sub(
+                r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
+                "",
+                str(e)
+            )
+
+            print(
+                f"[client {client}] "
+                f"{err}"
+            )
+
+            last_error = err
+
+            time.sleep(1)
+
+    # =====================================================
+    # FAILED
+    # =====================================================
+
+    redis_client.hset(
+
+        f"job:{job_id}",
+
+        mapping={
+
+            "status":
+            "failed",
+
+            "error":
+            last_error or "Download failed",
+        }
+    )
+
+    print(
+        f"[download failed] "
+        f"{last_error}"
+    )
