@@ -130,6 +130,9 @@ PROXY = os.environ.get(
 
 # =========================================================
 # COMMON YTDLP OPTIONS
+# FIX 1: Added "ios" as primary player_client to bypass
+#         YouTube bot-detection and js_runtimes errors.
+#         "web" kept as fallback.
 # =========================================================
 
 def get_common_opts():
@@ -175,13 +178,14 @@ def get_common_opts():
             "en-US,en;q=0.9",
         },
 
-        # ONLY WEB CLIENT
+        # FIX 1: ios bypasses js_runtimes issues + bot detection
         "extractor_args": {
 
             "youtube": {
 
                 "player_client": [
-                    "web"
+                    "ios",
+                    "web",
                 ]
             }
         },
@@ -284,15 +288,20 @@ def progress_hook(job_id):
 
 # =========================================================
 # EXTRACT METADATA
+# FIX 2: Removed extract_flat=True so yt-dlp actually
+#         validates available formats. Static format list
+#         is still returned to the frontend (safe UX),
+#         but now metadata extraction won't silently lie
+#         about what's available.
 # =========================================================
 
 def extract_metadata(url):
 
     opts = get_common_opts()
 
-    # IMPORTANT
-    # Avoid format validation
-    opts["extract_flat"] = True
+    # Do NOT use extract_flat — it skips format validation
+    # and causes 400s downstream when formats don't exist.
+    opts["skip_download"] = True
 
     try:
 
@@ -320,7 +329,9 @@ def extract_metadata(url):
                 "views":
                 info.get("view_count", 0),
 
-                # STATIC SAFE FORMATS
+                # Static safe formats shown to user.
+                # Actual download uses resilient fallback
+                # format string — see download_video_task.
                 "formats": [
 
                     {
@@ -380,6 +391,12 @@ def find_downloaded_file(
 
 # =========================================================
 # DOWNLOAD TASK
+# FIX 3: Replaced hardcoded "22/18/best" with a resilient
+#         cascading format string that works even when
+#         specific YouTube format IDs are unavailable.
+#         "22" and "18" are legacy IDs that many videos
+#         no longer expose — this new string always finds
+#         the best available option safely.
 # =========================================================
 
 def download_video_task(
@@ -413,20 +430,38 @@ def download_video_task(
     )
 
     # =====================================================
-    # SAFE FORMAT
+    # FIX 3: RESILIENT FORMAT STRINGS
+    # Old: "22/18/best" — breaks when format IDs missing
+    # New: Cascading height-capped selectors with merge
+    #      fallbacks, always finds something to download.
     # =====================================================
 
     if format_type == "audio":
 
-        # direct audio format
-        fmt = "140/251/bestaudio"
+        # Direct audio formats, cascading from best
+        fmt = "140/251/bestaudio[ext=m4a]/bestaudio"
+
+    elif quality == "720p":
+
+        # Try merged 720p first, then progressive, then any
+        fmt = (
+            "bestvideo[height<=720][ext=mp4]"
+            "+bestaudio[ext=m4a]"
+            "/bestvideo[height<=720]+bestaudio"
+            "/best[height<=720]"
+            "/best"
+        )
 
     else:
 
-        # SAFE merged formats only
-        # 18 = 360p mp4
-        # 22 = 720p mp4
-        fmt = "22/18/best"
+        # 360p fallback path
+        fmt = (
+            "bestvideo[height<=360][ext=mp4]"
+            "+bestaudio[ext=m4a]"
+            "/bestvideo[height<=360]+bestaudio"
+            "/best[height<=360]"
+            "/best"
+        )
 
     print(f"[download] format: {fmt}")
 
@@ -452,6 +487,9 @@ def download_video_task(
         "continuedl": True,
 
         "overwrites": True,
+
+        # Required when merging bestvideo+bestaudio
+        "merge_output_format": "mp4",
     })
 
     # =====================================================
