@@ -10,21 +10,57 @@ DOWNLOAD_DIR = os.path.abspath("downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# Authentication & Bot Bypass
+# Cookie Setup — runs once at import time
 # ---------------------------------------------------------------------------
-COOKIES_FILE = os.environ.get("YT_COOKIES_FILE", "cookies.txt")
-COOKIES_CONTENT = os.environ.get("YT_COOKIES_CONTENT")
+# Priority order:
+#   1. YT_COOKIES_FILE  → path to an existing cookies.txt on disk
+#   2. YT_COOKIES_CONTENT → raw Netscape cookie text pasted into env var
+#   3. Default fallback  → "cookies.txt" in the working directory
 
-if COOKIES_CONTENT and not os.path.exists(COOKIES_FILE):
-    try:
-        with open(COOKIES_FILE, "w", encoding="utf-8") as f:
-            f.write(COOKIES_CONTENT)
-        print(f"[setup] Created {COOKIES_FILE} from YT_COOKIES_CONTENT")
-    except Exception as e:
-        print(f"[setup] Failed to write cookies file: {e}")
+_COOKIES_FILE: str | None = None
 
-PO_TOKEN = os.environ.get("YT_PO_TOKEN")
-VISITOR_DATA = os.environ.get("YT_VISITOR_DATA")
+def _init_cookies() -> str | None:
+    global _COOKIES_FILE
+
+    # --- Option A: explicit file path env var ---
+    env_path = os.environ.get("YT_COOKIES_FILE", "").strip()
+    if env_path:
+        if os.path.isfile(env_path):
+            size = os.path.getsize(env_path)
+            print(f"[cookies] ✅ Loaded from YT_COOKIES_FILE: {env_path} ({size} bytes)")
+            return env_path
+        else:
+            print(f"[cookies] ❌ YT_COOKIES_FILE is set to '{env_path}' but file does NOT exist!")
+
+    # --- Option B: raw cookie content in env var ---
+    content = os.environ.get("YT_COOKIES_CONTENT", "").strip()
+    if content:
+        target = os.path.join(DOWNLOAD_DIR, "yt_cookies.txt")
+        try:
+            with open(target, "w", encoding="utf-8") as f:
+                f.write(content)
+            size = os.path.getsize(target)
+            print(f"[cookies] ✅ Written from YT_COOKIES_CONTENT → {target} ({size} bytes)")
+            return target
+        except Exception as e:
+            print(f"[cookies] ❌ Failed to write YT_COOKIES_CONTENT: {e}")
+
+    # --- Option C: cookies.txt in working dir ---
+    cwd_path = os.path.join(os.getcwd(), "cookies.txt")
+    if os.path.isfile(cwd_path):
+        size = os.path.getsize(cwd_path)
+        print(f"[cookies] ✅ Found cookies.txt in working dir: {cwd_path} ({size} bytes)")
+        return cwd_path
+
+    print("[cookies] ⚠️  NO cookies found — YouTube will block datacenter IPs!")
+    print("[cookies]    Fix: Set YT_COOKIES_FILE=/etc/secrets/cookies.txt in Render env vars")
+    print("[cookies]    and add cookies.txt as a Secret File in Render dashboard.")
+    return None
+
+_COOKIES_FILE = _init_cookies()
+
+PO_TOKEN    = os.environ.get("YT_PO_TOKEN", "").strip() or None
+VISITOR_DATA = os.environ.get("YT_VISITOR_DATA", "").strip() or None
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -56,85 +92,41 @@ def _base_opts(extra: dict | None = None) -> dict:
     return opts
 
 
-def _apply_cookies(opts: dict) -> dict:
-    """Attach cookies file to opts if it exists."""
-    if os.path.isfile(COOKIES_FILE):
-        opts["cookiefile"] = COOKIES_FILE
-        print(f"[auth] Using cookies from {COOKIES_FILE}")
-    else:
-        print(f"[auth] ⚠️  No cookies file found at '{COOKIES_FILE}' — YouTube may block requests")
-    return opts
-
-
-def _youtube_strategies(base_opts: dict) -> list[dict]:
+def _youtube_strategies() -> list[dict]:
     """
-    Return a list of YouTube strategy overrides, ordered from best to worst.
-
-    KEY INSIGHT:
-    - 'web' client returns ALL formats (1080p, 4K, etc.) but needs cookies on datacenter IPs
-    - 'ios'/'tv_embedded' bypass bot checks BUT only return limited formats (≤720p)
-    - Solution: always try 'web' first (with cookies), fall back to mobile clients
-      with a relaxed format string that accepts whatever they offer
+    Ordered list of YouTube extraction strategies.
+    Each dict is merged into the base opts for that attempt.
+    Special keys prefixed with '_' are consumed before merging.
     """
-    has_cookies = os.path.isfile(COOKIES_FILE)
-
     strategies = []
 
-    # --- Strategy 1: web client (full format list) + cookies ---
-    s1 = {
-        "_label": "web+cookies (full formats)",
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["web"],
-            }
-        },
-    }
-    if PO_TOKEN:
-        s1["extractor_args"]["youtube"]["po_token"] = [f"web+{PO_TOKEN}"]
-    if VISITOR_DATA:
-        s1["extractor_args"]["youtube"]["visitor_data"] = VISITOR_DATA
-    if has_cookies:
-        s1["cookiefile"] = COOKIES_FILE
-    strategies.append(s1)
+    def _yt(label: str, clients: list, format_override: str | None = None) -> dict:
+        s = {
+            "_label": label,
+            "_format_override": format_override,
+            "extractor_args": {"youtube": {"player_client": clients}},
+        }
+        if PO_TOKEN:
+            s["extractor_args"]["youtube"]["po_token"] = [f"web+{PO_TOKEN}"]
+        if VISITOR_DATA:
+            s["extractor_args"]["youtube"]["visitor_data"] = VISITOR_DATA
+        if _COOKIES_FILE:
+            s["cookiefile"] = _COOKIES_FILE
+        return s
 
-    # --- Strategy 2: web_creator client (trusted, often bypasses bot check) ---
-    s2 = {
-        "_label": "web_creator (trusted client)",
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["web_creator"],
-            }
-        },
-    }
-    if has_cookies:
-        s2["cookiefile"] = COOKIES_FILE
-    strategies.append(s2)
+    # web gives ALL formats (1080p/4K) — needs cookies on datacenter IPs
+    strategies.append(_yt("web (full formats)", ["web"]))
 
-    # --- Strategy 3: android client (mobile, different quota/bot rules) ---
-    s3 = {
-        "_label": "android (mobile client)",
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android"],
-            }
-        },
-    }
-    if has_cookies:
-        s3["cookiefile"] = COOKIES_FILE
-    strategies.append(s3)
+    # web_creator — trusted client, usually bypasses bot check, most formats
+    strategies.append(_yt("web_creator", ["web_creator"]))
 
-    # --- Strategy 4: tv_embedded (last resort, limited formats but no bot check) ---
-    s4 = {
-        "_label": "tv_embedded (no bot check, limited formats)",
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["tv_embedded"],
-            }
-        },
-        # tv_embedded only has progressive formats, so override format to just grab best
-        "_format_override": "best",
-    }
-    strategies.append(s4)
+    # android — mobile client, different rate limits, up to 1080p
+    strategies.append(_yt("android", ["android"]))
+
+    # tv_embedded — almost never blocked, but only progressive formats ≤720p
+    # Force "best" so we don't get "format not available" for high-res requests
+    strategies.append(_yt("tv_embedded (fallback, limited quality)", ["tv_embedded"],
+                          format_override="best"))
 
     return strategies
 
@@ -147,22 +139,18 @@ def extract_metadata(url: str):
     is_youtube = "youtube.com" in url or "youtu.be" in url
     base = _base_opts({"skip_download": True})
 
-    if is_youtube:
-        strategies = _youtube_strategies(base)
-    else:
-        strategies = [{}]
+    strategies = _youtube_strategies() if is_youtube else [{"_label": "default", "_format_override": None}]
 
     last_error = None
     for strategy in strategies:
         label = strategy.pop("_label", "default")
-        strategy.pop("_format_override", None)  # not relevant for metadata
+        strategy.pop("_format_override", None)
         opts = {**base, **strategy}
-        print(f"[extract_metadata] trying: {label}")
+        print(f"[metadata] trying: {label}")
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-
                 formats = []
                 for f in info.get("formats", []):
                     if f.get("vcodec") != "none" and f.get("height"):
@@ -179,7 +167,6 @@ def extract_metadata(url: str):
                             "ext": f.get("ext"),
                             "type": "audio",
                         })
-
                 return {
                     "title": info.get("title", "Unknown Title"),
                     "thumbnail": info.get("thumbnail", ""),
@@ -189,15 +176,13 @@ def extract_metadata(url: str):
                     "formats": formats,
                     "platform": info.get("extractor_key", ""),
                 }
-
         except Exception as e:
             raw = str(e)
             last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", raw)
-            print(f"[extract_metadata] {label} failed: {last_error}")
-
+            print(f"[metadata] {label} failed: {last_error}")
             bot_keywords = ["sign in", "bot", "cookie", "lock", "permission", "confirm"]
             if not any(kw in last_error.lower() for kw in bot_keywords):
-                break  # Non-bot error – no point retrying
+                break
 
     raise Exception(last_error or "Extraction failed after all attempts")
 
@@ -251,17 +236,8 @@ def _find_downloaded_file(job_id: str, expected_ext: str) -> str | None:
 
 
 def _build_format_str(format_type: str, res: int) -> str:
-    """
-    Build a robust format selection string with 4-level fallback.
-    Only used when the strategy does NOT have a _format_override.
-    """
     if format_type == "audio":
         return "bestaudio/best"
-
-    # Level 1: mp4 video + m4a audio at desired res (best quality, clean merge)
-    # Level 2: any video + audio at desired res
-    # Level 3: best single progressive format at desired res
-    # Level 4: absolute best (no restriction) — ALWAYS succeeds
     return (
         f"bestvideo[height<={res}][ext=mp4]+bestaudio[ext=m4a]"
         f"/bestvideo[height<={res}]+bestaudio"
@@ -277,8 +253,12 @@ def _build_format_str(format_type: str, res: int) -> str:
 def download_video_task(job_id: str, url: str, format_type: str, quality: str):
     cleanup_downloads()
 
-    is_youtube = "youtube.com" in url or "youtu.be" in url
+    # Re-check cookies on every job in case file appeared after startup
+    global _COOKIES_FILE
+    if not _COOKIES_FILE:
+        _COOKIES_FILE = _init_cookies()
 
+    is_youtube = "youtube.com" in url or "youtu.be" in url
     res_map = {"4k": 2160, "1080p": 1080, "720p": 720, "480p": 480}
     res = res_map.get(quality.lower(), 2160)
     ext = "mp3" if format_type == "audio" else "mp4"
@@ -303,17 +283,12 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
         "fragment_retries": 10,
         "ignoreerrors": False,
         "postprocessors": (
-            [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
-            }]
-            if format_type == "audio"
-            else []
+            [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]
+            if format_type == "audio" else []
         ),
     })
 
-    strategies = _youtube_strategies(base_dl_opts) if is_youtube else [{"_label": "default", "_format_override": None}]
+    strategies = _youtube_strategies() if is_youtube else [{"_label": "default", "_format_override": None}]
 
     success = False
     last_error = None
@@ -321,12 +296,10 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
     for strategy in strategies:
         label = strategy.pop("_label", "default")
         format_override = strategy.pop("_format_override", None)
-
-        # Use strategy's format override if present, else build normal format string
         format_str = format_override if format_override else _build_format_str(format_type, res)
 
         opts = {**base_dl_opts, **strategy, "format": format_str}
-        print(f"[download] trying strategy: {label} | format: {format_str[:60]}...")
+        print(f"[download] strategy: {label} | cookies: {'YES ✅' if _COOKIES_FILE else 'NO ❌'}")
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -336,13 +309,11 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
                         break
                     except Exception as e:
                         if "WinError 32" in str(e) and retry < 2:
-                            print("[download] merger lock, retrying in 5s…")
                             time.sleep(5)
                         else:
                             raise
 
             time.sleep(2)
-
             expected_ext = "mp3" if format_type == "audio" else "mp4"
             downloaded_file = _find_downloaded_file(job_id, expected_ext)
 
@@ -365,7 +336,6 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
                             os.remove(os.path.join(DOWNLOAD_DIR, name))
                         except Exception:
                             pass
-
                 redis_client.hset(f"job:{job_id}", mapping={
                     "status": "completed",
                     "progress": "100",
@@ -379,13 +349,13 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
             print(f"[download] {label} failed: {last_error}")
 
             bot_keywords = ["sign in", "bot", "cookie", "confirm", "permission"]
-            if not any(kw in last_error.lower() for kw in bot_keywords):
-                # Format error — don't keep retrying with same format on different clients
-                # BUT do continue if it's a "not available" format issue (try next client)
-                if "not available" in last_error.lower() or "requested format" in last_error.lower():
-                    print(f"[download] format not available for this client, trying next...")
-                    continue
-                break
+            format_keywords = ["not available", "requested format"]
+            if any(kw in last_error.lower() for kw in bot_keywords):
+                continue  # Try next strategy
+            elif any(kw in last_error.lower() for kw in format_keywords):
+                continue  # Format not in this client, try next
+            else:
+                break     # Unrecoverable error
 
     if not success:
         redis_client.hset(f"job:{job_id}", mapping={
