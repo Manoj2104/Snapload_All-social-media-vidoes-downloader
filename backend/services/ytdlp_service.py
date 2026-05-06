@@ -26,30 +26,11 @@ if COOKIES_CONTENT and not os.path.exists(COOKIES_FILE):
 PO_TOKEN = os.environ.get("YT_PO_TOKEN")
 VISITOR_DATA = os.environ.get("YT_VISITOR_DATA")
 
-
-def _youtube_opts(base: dict) -> dict:
-    """Merge YouTube-specific extractor args into an opts dict."""
-    opts = dict(base)
-
-    yt_args = {
-        "player_client": ["ios", "web_creator", "tv_embedded", "android"],
-    }
-
-    if PO_TOKEN:
-        yt_args["po_token"] = [f"web+{PO_TOKEN}", f"ios+{PO_TOKEN}"]
-    if VISITOR_DATA:
-        yt_args["visitor_data"] = VISITOR_DATA
-
-    opts["extractor_args"] = {"youtube": yt_args}
-
-    if os.path.isfile(COOKIES_FILE):
-        opts["cookiefile"] = COOKIES_FILE
-
-    return opts
-
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
 
 def _base_opts(extra: dict | None = None) -> dict:
-    """Return a base yt-dlp options dict shared by both metadata and download."""
     opts = {
         "quiet": True,
         "no_warnings": True,
@@ -75,28 +56,108 @@ def _base_opts(extra: dict | None = None) -> dict:
     return opts
 
 
+def _apply_cookies(opts: dict) -> dict:
+    """Attach cookies file to opts if it exists."""
+    if os.path.isfile(COOKIES_FILE):
+        opts["cookiefile"] = COOKIES_FILE
+        print(f"[auth] Using cookies from {COOKIES_FILE}")
+    else:
+        print(f"[auth] ⚠️  No cookies file found at '{COOKIES_FILE}' — YouTube may block requests")
+    return opts
+
+
+def _youtube_strategies(base_opts: dict) -> list[dict]:
+    """
+    Return a list of YouTube strategy overrides, ordered from best to worst.
+
+    KEY INSIGHT:
+    - 'web' client returns ALL formats (1080p, 4K, etc.) but needs cookies on datacenter IPs
+    - 'ios'/'tv_embedded' bypass bot checks BUT only return limited formats (≤720p)
+    - Solution: always try 'web' first (with cookies), fall back to mobile clients
+      with a relaxed format string that accepts whatever they offer
+    """
+    has_cookies = os.path.isfile(COOKIES_FILE)
+
+    strategies = []
+
+    # --- Strategy 1: web client (full format list) + cookies ---
+    s1 = {
+        "_label": "web+cookies (full formats)",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["web"],
+            }
+        },
+    }
+    if PO_TOKEN:
+        s1["extractor_args"]["youtube"]["po_token"] = [f"web+{PO_TOKEN}"]
+    if VISITOR_DATA:
+        s1["extractor_args"]["youtube"]["visitor_data"] = VISITOR_DATA
+    if has_cookies:
+        s1["cookiefile"] = COOKIES_FILE
+    strategies.append(s1)
+
+    # --- Strategy 2: web_creator client (trusted, often bypasses bot check) ---
+    s2 = {
+        "_label": "web_creator (trusted client)",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["web_creator"],
+            }
+        },
+    }
+    if has_cookies:
+        s2["cookiefile"] = COOKIES_FILE
+    strategies.append(s2)
+
+    # --- Strategy 3: android client (mobile, different quota/bot rules) ---
+    s3 = {
+        "_label": "android (mobile client)",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android"],
+            }
+        },
+    }
+    if has_cookies:
+        s3["cookiefile"] = COOKIES_FILE
+    strategies.append(s3)
+
+    # --- Strategy 4: tv_embedded (last resort, limited formats but no bot check) ---
+    s4 = {
+        "_label": "tv_embedded (no bot check, limited formats)",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["tv_embedded"],
+            }
+        },
+        # tv_embedded only has progressive formats, so override format to just grab best
+        "_format_override": "best",
+    }
+    strategies.append(s4)
+
+    return strategies
+
+
 # ---------------------------------------------------------------------------
 # Metadata extraction
 # ---------------------------------------------------------------------------
 
 def extract_metadata(url: str):
     is_youtube = "youtube.com" in url or "youtu.be" in url
-
     base = _base_opts({"skip_download": True})
 
-    attempt_overrides = [
-        {},
-        {"extractor_args": {"youtube": {"player_client": ["web_creator"]}}} if is_youtube else {},
-        {"extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}} if is_youtube else {},
-    ]
+    if is_youtube:
+        strategies = _youtube_strategies(base)
+    else:
+        strategies = [{}]
 
     last_error = None
-    for override in attempt_overrides:
-        opts = {**base, **override}
-        if is_youtube:
-            opts = _youtube_opts(opts)
-            if override:
-                opts.update(override)
+    for strategy in strategies:
+        label = strategy.pop("_label", "default")
+        strategy.pop("_format_override", None)  # not relevant for metadata
+        opts = {**base, **strategy}
+        print(f"[extract_metadata] trying: {label}")
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -132,11 +193,11 @@ def extract_metadata(url: str):
         except Exception as e:
             raw = str(e)
             last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", raw)
-            print(f"[extract_metadata] attempt failed: {last_error}")
+            print(f"[extract_metadata] {label} failed: {last_error}")
 
             bot_keywords = ["sign in", "bot", "cookie", "lock", "permission", "confirm"]
             if not any(kw in last_error.lower() for kw in bot_keywords):
-                break
+                break  # Non-bot error – no point retrying
 
     raise Exception(last_error or "Extraction failed after all attempts")
 
@@ -146,7 +207,6 @@ def extract_metadata(url: str):
 # ---------------------------------------------------------------------------
 
 def cleanup_downloads():
-    """Remove all files from the downloads directory."""
     if not os.path.exists(DOWNLOAD_DIR):
         return
     for name in os.listdir(DOWNLOAD_DIR):
@@ -161,8 +221,6 @@ def cleanup_downloads():
 
 
 def _progress_hook(job_id: str):
-    """Return a yt-dlp progress hook that writes progress to Redis."""
-
     def hook(d):
         try:
             if d["status"] == "downloading":
@@ -174,12 +232,10 @@ def _progress_hook(job_id: str):
                 redis_client.hset(f"job:{job_id}", "progress", "99")
         except Exception:
             pass
-
     return hook
 
 
 def _find_downloaded_file(job_id: str, expected_ext: str) -> str | None:
-    """Locate the file yt-dlp actually wrote, regardless of exact name."""
     candidates = [
         os.path.join(DOWNLOAD_DIR, f"{job_id}_raw.{expected_ext}"),
         os.path.join(DOWNLOAD_DIR, f"{job_id}_raw.temp.{expected_ext}"),
@@ -188,12 +244,30 @@ def _find_downloaded_file(job_id: str, expected_ext: str) -> str | None:
     for p in candidates:
         if os.path.exists(p):
             return p
-
     for name in os.listdir(DOWNLOAD_DIR):
         if name.startswith(f"{job_id}_raw") and not name.endswith(".part"):
             return os.path.join(DOWNLOAD_DIR, name)
-
     return None
+
+
+def _build_format_str(format_type: str, res: int) -> str:
+    """
+    Build a robust format selection string with 4-level fallback.
+    Only used when the strategy does NOT have a _format_override.
+    """
+    if format_type == "audio":
+        return "bestaudio/best"
+
+    # Level 1: mp4 video + m4a audio at desired res (best quality, clean merge)
+    # Level 2: any video + audio at desired res
+    # Level 3: best single progressive format at desired res
+    # Level 4: absolute best (no restriction) — ALWAYS succeeds
+    return (
+        f"bestvideo[height<={res}][ext=mp4]+bestaudio[ext=m4a]"
+        f"/bestvideo[height<={res}]+bestaudio"
+        f"/best[height<={res}]"
+        f"/best"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -207,29 +281,11 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
 
     res_map = {"4k": 2160, "1080p": 1080, "720p": 720, "480p": 480}
     res = res_map.get(quality.lower(), 2160)
-
-    if format_type == "audio":
-        format_str = "bestaudio/best"
-        ext = "mp3"
-    else:
-        # ✅ FIXED: Proper 4-level fallback chain
-        # Level 1: Best mp4 video + m4a audio up to desired res (cleanest merge)
-        # Level 2: Best video + audio of any format up to desired res
-        # Level 3: Best single-file format up to desired res (no merge needed)
-        # Level 4: Absolute best available (no restriction — always succeeds)
-        format_str = (
-            f"bestvideo[height<={res}][ext=mp4]+bestaudio[ext=m4a]"
-            f"/bestvideo[height<={res}]+bestaudio"
-            f"/best[height<={res}]"
-            f"/best"
-        )
-        ext = "mp4"
-
+    ext = "mp3" if format_type == "audio" else "mp4"
     final_file_path = os.path.join(DOWNLOAD_DIR, f"{job_id}.{ext}")
 
     base_dl_opts = _base_opts({
         "quiet": False,
-        "format": format_str,
         "outtmpl": os.path.join(DOWNLOAD_DIR, f"{job_id}_raw.%(ext)s"),
         "progress_hooks": [_progress_hook(job_id)],
         "nocheckcertificate": True,
@@ -257,38 +313,20 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
         ),
     })
 
-    if is_youtube:
-        strategies = [
-            # Strategy 1 – ios + tv_embedded (stealthiest, no cookies needed)
-            {
-                "extractor_args": {
-                    "youtube": {"player_client": ["ios", "tv_embedded"]}
-                }
-            },
-            # Strategy 2 – android + web_creator
-            {
-                "extractor_args": {
-                    "youtube": {"player_client": ["android", "web_creator"]}
-                }
-            },
-            # Strategy 3 – plain web client (relies on cookies if available)
-            {
-                "extractor_args": {
-                    "youtube": {"player_client": ["web"]}
-                }
-            },
-        ]
-        if os.path.isfile(COOKIES_FILE):
-            strategies = [{**s, "cookiefile": COOKIES_FILE} for s in strategies]
-    else:
-        strategies = [{}]
+    strategies = _youtube_strategies(base_dl_opts) if is_youtube else [{"_label": "default", "_format_override": None}]
 
     success = False
     last_error = None
 
-    for i, strategy in enumerate(strategies):
-        opts = {**base_dl_opts, **strategy}
-        print(f"[download] strategy {i + 1}/{len(strategies)}")
+    for strategy in strategies:
+        label = strategy.pop("_label", "default")
+        format_override = strategy.pop("_format_override", None)
+
+        # Use strategy's format override if present, else build normal format string
+        format_str = format_override if format_override else _build_format_str(format_type, res)
+
+        opts = {**base_dl_opts, **strategy, "format": format_str}
+        print(f"[download] trying strategy: {label} | format: {format_str[:60]}...")
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -309,7 +347,7 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
             downloaded_file = _find_downloaded_file(job_id, expected_ext)
 
             if downloaded_file:
-                for attempt in range(15):
+                for _ in range(15):
                     try:
                         if os.path.exists(final_file_path):
                             os.remove(final_file_path)
@@ -328,30 +366,29 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
                         except Exception:
                             pass
 
-                redis_client.hset(
-                    f"job:{job_id}",
-                    mapping={
-                        "status": "completed",
-                        "progress": "100",
-                        "downloadUrl": final_file_path,
-                    },
-                )
+                redis_client.hset(f"job:{job_id}", mapping={
+                    "status": "completed",
+                    "progress": "100",
+                    "downloadUrl": final_file_path,
+                })
                 break
 
         except Exception as e:
             raw = str(e)
             last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", raw)
-            print(f"[download] strategy {i + 1} failed: {last_error}")
+            print(f"[download] {label} failed: {last_error}")
 
             bot_keywords = ["sign in", "bot", "cookie", "confirm", "permission"]
             if not any(kw in last_error.lower() for kw in bot_keywords):
+                # Format error — don't keep retrying with same format on different clients
+                # BUT do continue if it's a "not available" format issue (try next client)
+                if "not available" in last_error.lower() or "requested format" in last_error.lower():
+                    print(f"[download] format not available for this client, trying next...")
+                    continue
                 break
 
     if not success:
-        redis_client.hset(
-            f"job:{job_id}",
-            mapping={
-                "status": "failed",
-                "error": last_error or "Download failed after all strategies",
-            },
-        )
+        redis_client.hset(f"job:{job_id}", mapping={
+            "status": "failed",
+            "error": last_error or "Download failed after all strategies",
+        })
