@@ -89,7 +89,7 @@ PROXY = os.environ.get("YT_PROXY", "").strip()
 # - web kept as fallback
 # =========================================================
 
-def get_common_opts(is_youtube=True):
+def get_common_opts(is_youtube=True, is_download=False):
     # Support for PO Token (Proof of Origin) — set these in Render Env Vars
     po_token = os.environ.get("YT_PO_TOKEN")
     visitor_data = os.environ.get("YT_VISITOR_DATA")
@@ -121,8 +121,9 @@ def get_common_opts(is_youtube=True):
         # We prioritize high-trust clients that bypass bot detection and n-sig challenges
         yt_args = {
             "player_client": ["ios", "web_creator", "tv_embedded", "android"],
-            # Ensure we don't skip manifests if a PO Token is provided
-            "skip": ["hls", "dash"] if not po_token else [],
+            # Critical: Allow HLS/DASH during downloads to get high quality formats
+            # We only skip them during Analyze (is_download=False) to avoid bot triggers
+            "skip": ["hls", "dash"] if (not is_download and not po_token) else [],
         }
         
         if po_token:
@@ -155,7 +156,7 @@ def get_common_opts(is_youtube=True):
 
 def get_metadata_opts(is_youtube=True):
 
-    opts = get_common_opts(is_youtube)
+    opts = get_common_opts(is_youtube, is_download=False)
 
     # extract_flat=True on a single video URL:
     # fetches basic info, skips format listing completely.
@@ -338,9 +339,8 @@ def download_video_task(
     # --------------------------------------------------
 
     if format_type == "audio":
-
-        # m4a/webm audio, converted to mp3 via postprocessor
-        fmt = "140/251/bestaudio[ext=m4a]/bestaudio"
+        # Universal audio selector: m4a/mp3/best
+        fmt = "bestaudio[ext=m4a]/bestaudio/best"
 
     elif quality == "720p":
 
@@ -367,7 +367,7 @@ def download_video_task(
     print(f"[download] cookies: {COOKIE_FILE or 'NONE'}")
 
     is_youtube = "youtube.com" in url or "youtu.be" in url
-    opts = get_common_opts(is_youtube)
+    opts = get_common_opts(is_youtube, is_download=True)
 
     opts.update({
         "format":              fmt,
