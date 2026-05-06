@@ -188,7 +188,7 @@ def get_common_opts():
                 "(Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 "
                 "(KHTML, like Gecko) "
-                "Chrome/124.0.0.0 "
+                "Chrome/137.0.0.0 "
                 "Safari/537.36"
             ),
 
@@ -196,17 +196,25 @@ def get_common_opts():
             "en-US,en;q=0.9",
         },
 
-        # stable youtube client
+        # =================================================
+        # FINAL YOUTUBE FIX
+        # =================================================
+
         "extractor_args": {
 
             "youtube": {
 
                 "player_client": [
-                    "android",
-                    "tv_embedded",
                     "web"
                 ]
             }
+        },
+
+        # IMPORTANT
+        # NODE JS RUNTIME
+        "js_runtimes": {
+
+            "node": "node"
         },
     }
 
@@ -317,7 +325,11 @@ def extract_metadata(url):
 
     try:
 
-        # MINIMAL SAFE OPTIONS
+        # =================================================
+        # IMPORTANT
+        # DO NOT USE get_common_opts()
+        # =================================================
+
         opts = {
 
             "quiet": True,
@@ -329,9 +341,26 @@ def extract_metadata(url):
             "nocheckcertificate": True,
 
             "ignoreerrors": False,
+
+            "http_headers": {
+
+                "User-Agent": (
+                    "Mozilla/5.0 "
+                    "(Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) "
+                    "Chrome/137.0.0.0 "
+                    "Safari/537.36"
+                )
+            },
+
+            "js_runtimes": {
+
+                "node": "node"
+            },
         }
 
-        # ONLY cookies
+        # cookies
         if (
             COOKIE_FILE
             and os.path.isfile(COOKIE_FILE)
@@ -378,35 +407,60 @@ def extract_metadata(url):
                     0
                 ),
 
-                # STATIC UI OPTIONS
+                # STATIC SAFE FORMATS
                 "formats": [
 
                     {
-                        "format_id": "22",
-                        "resolution": "720p",
-                        "ext": "mp4",
-                        "type": "video",
+                        "format_id":
+                        "22",
+
+                        "resolution":
+                        "720p",
+
+                        "ext":
+                        "mp4",
+
+                        "type":
+                        "video",
                     },
 
                     {
-                        "format_id": "18",
-                        "resolution": "360p",
-                        "ext": "mp4",
-                        "type": "video",
+                        "format_id":
+                        "18",
+
+                        "resolution":
+                        "360p",
+
+                        "ext":
+                        "mp4",
+
+                        "type":
+                        "video",
                     },
 
                     {
-                        "format_id": "140",
-                        "resolution": "audio",
-                        "ext": "mp3",
-                        "type": "audio",
+                        "format_id":
+                        "140",
+
+                        "resolution":
+                        "audio",
+
+                        "ext":
+                        "mp3",
+
+                        "type":
+                        "audio",
                     }
                 ]
             }
 
     except Exception as e:
 
-        err = str(e)
+        err = re.sub(
+            r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
+            "",
+            str(e)
+        )
 
         print(
             f"[metadata error] "
@@ -414,7 +468,7 @@ def extract_metadata(url):
         )
 
         raise Exception(err)
-        
+
 # =========================================================
 # FIND FILE
 # =========================================================
@@ -461,11 +515,6 @@ def download_video_task(
 
         COOKIE_FILE = init_cookies()
 
-    is_youtube = (
-        "youtube.com" in url
-        or "youtu.be" in url
-    )
-
     ext = (
         "mp3"
         if format_type == "audio"
@@ -478,7 +527,7 @@ def download_video_task(
     )
 
     # =====================================================
-    # STABLE FORMAT
+    # FINAL SAFE FORMATS
     # =====================================================
 
     if format_type == "audio":
@@ -504,51 +553,35 @@ def download_video_task(
         f"{fmt}"
     )
 
-    print(
-        f"[download] cookies => "
-        f"{COOKIE_FILE or 'NONE'}"
-    )
-
     last_error = None
 
-    # =====================================================
-    # MULTI CLIENT FALLBACK
-    # =====================================================
+    for client in [
 
-    client_strategies = [
-
-        "tv_embedded",
+        "web",
 
         "android",
 
-        "ios",
-
-        "web"
-    ]
-
-    for client in client_strategies:
+        "tv_embedded"
+    ]:
 
         try:
 
             print(
-                f"[download] trying client => "
+                f"[download] trying => "
                 f"{client}"
             )
 
             opts = get_common_opts()
 
-            # youtube specific
-            if is_youtube:
+            opts["extractor_args"] = {
 
-                opts["extractor_args"] = {
+                "youtube": {
 
-                    "youtube": {
-
-                        "player_client": [
-                            client
-                        ]
-                    }
+                    "player_client": [
+                        client
+                    ]
                 }
+            }
 
             opts.update({
 
