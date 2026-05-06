@@ -2,6 +2,8 @@ import yt_dlp
 import os
 import re
 import shutil
+import time
+
 from services.redis_service import redis_client
 
 # =========================================================
@@ -9,7 +11,11 @@ from services.redis_service import redis_client
 # =========================================================
 
 DOWNLOAD_DIR = os.path.abspath("downloads")
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+os.makedirs(
+    DOWNLOAD_DIR,
+    exist_ok=True
+)
 
 # =========================================================
 # COOKIE SETUP
@@ -27,50 +33,111 @@ def init_cookies():
         os.path.isfile(writable_cookie)
         and os.path.getsize(writable_cookie) > 100
     ):
-        print(f"[cookies] loaded: {writable_cookie}")
+
+        print(
+            f"[cookies] loaded: "
+            f"{writable_cookie}"
+        )
+
         return writable_cookie
 
     # render secret file
     env_cookie_file = os.environ.get(
-        "YT_COOKIES_FILE", ""
+        "YT_COOKIES_FILE",
+        ""
     ).strip()
 
-    if env_cookie_file and os.path.isfile(env_cookie_file):
+    if (
+        env_cookie_file
+        and os.path.isfile(env_cookie_file)
+    ):
+
         try:
-            shutil.copy2(env_cookie_file, writable_cookie)
+
+            shutil.copy2(
+                env_cookie_file,
+                writable_cookie
+            )
+
             print(
-                f"[cookies] copied from render secret: "
+                f"[cookies] copied from "
+                f"render secret: "
                 f"{writable_cookie}"
             )
+
             return writable_cookie
+
         except Exception as e:
-            print(f"[cookies] copy failed: {e}")
+
+            print(
+                f"[cookies] copy failed: "
+                f"{e}"
+            )
 
     # raw env content
     env_cookie_content = os.environ.get(
-        "YT_COOKIES_CONTENT", ""
+        "YT_COOKIES_CONTENT",
+        ""
     ).strip()
 
     if env_cookie_content:
+
         try:
-            with open(writable_cookie, "w", encoding="utf-8") as f:
-                f.write(env_cookie_content)
-            print("[cookies] loaded from env content")
+
+            with open(
+                writable_cookie,
+                "w",
+                encoding="utf-8"
+            ) as f:
+
+                f.write(
+                    env_cookie_content
+                )
+
+            print(
+                "[cookies] loaded "
+                "from env content"
+            )
+
             return writable_cookie
+
         except Exception as e:
-            print(f"[cookies] write failed: {e}")
+
+            print(
+                f"[cookies] write failed: "
+                f"{e}"
+            )
 
     # local fallback
     local_cookie = "cookies.txt"
-    if os.path.isfile(local_cookie):
-        try:
-            shutil.copy2(local_cookie, writable_cookie)
-            print("[cookies] local loaded")
-            return writable_cookie
-        except Exception as e:
-            print(f"[cookies] local failed: {e}")
 
-    print("[cookies] WARNING: no cookies found")
+    if os.path.isfile(local_cookie):
+
+        try:
+
+            shutil.copy2(
+                local_cookie,
+                writable_cookie
+            )
+
+            print(
+                "[cookies] local loaded"
+            )
+
+            return writable_cookie
+
+        except Exception as e:
+
+            print(
+                f"[cookies] local failed: "
+                f"{e}"
+            )
+
+    print(
+        "[cookies] WARNING: "
+        "no cookies found"
+    )
+
     return None
 
 
@@ -80,91 +147,125 @@ COOKIE_FILE = init_cookies()
 # OPTIONAL PROXY
 # =========================================================
 
-PROXY = os.environ.get("YT_PROXY", "").strip()
+PROXY = os.environ.get(
+    "YT_PROXY",
+    ""
+).strip()
 
 # =========================================================
-# COMMON YTDLP OPTIONS
-# - ios client primary: bypasses js_runtimes error
-#   and YouTube bot detection entirely
-# - web kept as fallback
+# COMMON OPTIONS
 # =========================================================
 
-def get_common_opts(is_youtube=True, is_download=False):
-    # Support for PO Token (Proof of Origin) — set these in Render Env Vars
-    po_token = os.environ.get("YT_PO_TOKEN")
-    visitor_data = os.environ.get("YT_VISITOR_DATA")
+def get_common_opts(
+    is_youtube=True,
+    is_download=False
+):
 
     opts = {
-        "quiet":               True,
-        "no_warnings":         True,
-        "nocheckcertificate":  True,
-        "ignoreerrors":        False,
-        "geo_bypass":          True,
-        "force_ipv4":          True,
-        "socket_timeout":      60,
-        "retries":             10,
-        "fragment_retries":    10,
-        "extractor_retries":   5,
-        "sleep_interval":      1,
-        "max_sleep_interval":  3,
+
+        "quiet": True,
+
+        "no_warnings": True,
+
+        "nocheckcertificate": True,
+
+        "ignoreerrors": False,
+
+        "geo_bypass": True,
+
+        "force_ipv4": True,
+
+        "socket_timeout": 60,
+
+        "retries": 10,
+
+        "fragment_retries": 10,
+
+        "extractor_retries": 5,
+
+        "sleep_interval": 1,
+
+        "max_sleep_interval": 3,
+
         "http_headers": {
+
             "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
+
+                "Mozilla/5.0 "
+                "(Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 "
+                "(KHTML, like Gecko) "
+                "Chrome/124.0.0.0 "
+                "Safari/537.36"
             ),
-            "Accept-Language": "en-US,en;q=0.9",
+
+            "Accept-Language":
+            "en-US,en;q=0.9",
         },
     }
 
-    if is_youtube:
-        # We prioritize high-trust clients that bypass bot detection and n-sig challenges
-        yt_args = {
-            "player_client": ["ios", "web_creator", "tv_embedded", "android"],
-            # Critical: Allow HLS/DASH during downloads to get high quality formats
-            # We only skip them during Analyze (is_download=False) to avoid bot triggers
-            "skip": ["hls", "dash"] if (not is_download and not po_token) else [],
-        }
-        
-        if po_token:
-            yt_args["po_token"] = [f"web+{po_token}", f"ios+{po_token}"]
-        if visitor_data:
-            yt_args["visitor_data"] = visitor_data
-            
-        opts["extractor_args"] = {"youtube": yt_args}
+    # =====================================================
+    # YOUTUBE SETTINGS
+    # =====================================================
 
-    if COOKIE_FILE and os.path.isfile(COOKIE_FILE):
+    if is_youtube:
+
+        opts["extractor_args"] = {
+
+            "youtube": {
+
+                # FINAL STABLE CLIENT
+                "player_client": [
+                    "android"
+                ],
+
+                # skip heavy parsing during metadata
+                "skip": (
+                    ["hls", "dash"]
+                    if not is_download
+                    else []
+                )
+            }
+        }
+
+    # =====================================================
+    # COOKIES
+    # =====================================================
+
+    if (
+        COOKIE_FILE
+        and os.path.isfile(COOKIE_FILE)
+    ):
+
         opts["cookiefile"] = COOKIE_FILE
 
+    # =====================================================
+    # PROXY
+    # =====================================================
+
     if PROXY:
+
         opts["proxy"] = PROXY
 
     return opts
 
 # =========================================================
-# METADATA-ONLY OPTIONS
-#
-# KEY DESIGN RULE:
-# extract_metadata must NEVER fail due to format issues.
-# extract_flat=True tells yt-dlp to fetch basic info only
-# (title, thumbnail, duration, channel, views) and skip
-# all format probing entirely.
-#
-# Format validation happens ONLY in download_video_task.
-# This is the correct separation of concerns.
+# METADATA OPTIONS
 # =========================================================
 
-def get_metadata_opts(is_youtube=True):
+def get_metadata_opts(
+    is_youtube=True
+):
 
-    opts = get_common_opts(is_youtube, is_download=False)
+    opts = get_common_opts(
+        is_youtube,
+        is_download=False
+    )
 
-    # extract_flat=True on a single video URL:
-    # fetches basic info, skips format listing completely.
-    # No formats = no format errors. Ever.
-    opts["extract_flat"]  = True
+    opts["extract_flat"] = True
+
     opts["skip_download"] = True
 
-    # Do NOT set "format" here — no format = no format error
     return opts
 
 # =========================================================
@@ -173,23 +274,38 @@ def get_metadata_opts(is_youtube=True):
 
 def cleanup_downloads():
 
-    if not os.path.exists(DOWNLOAD_DIR):
+    if not os.path.exists(
+        DOWNLOAD_DIR
+    ):
         return
 
-    for name in os.listdir(DOWNLOAD_DIR):
+    for name in os.listdir(
+        DOWNLOAD_DIR
+    ):
 
         if name == "cookies.txt":
             continue
 
-        path = os.path.join(DOWNLOAD_DIR, name)
+        path = os.path.join(
+            DOWNLOAD_DIR,
+            name
+        )
 
         try:
+
             if os.path.isfile(path):
+
                 os.remove(path)
+
             elif os.path.isdir(path):
+
                 shutil.rmtree(path)
+
         except Exception as e:
-            print(f"[cleanup] {e}")
+
+            print(
+                f"[cleanup] {e}"
+            )
 
 # =========================================================
 # PROGRESS HOOK
@@ -198,24 +314,51 @@ def cleanup_downloads():
 def progress_hook(job_id):
 
     def hook(d):
+
         try:
+
             if d["status"] == "downloading":
 
-                percent = d.get("_percent_str", "0%")
-                clean   = re.sub(
+                percent = d.get(
+                    "_percent_str",
+                    "0%"
+                )
+
+                clean = re.sub(
+
                     r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
+
                     "",
+
                     percent
                 )
-                value = float(clean.replace("%", "").strip())
+
+                value = float(
+
+                    clean.replace(
+                        "%",
+                        ""
+                    ).strip()
+                )
 
                 redis_client.hset(
-                    f"job:{job_id}", "progress", str(value)
+
+                    f"job:{job_id}",
+
+                    "progress",
+
+                    str(value)
                 )
 
             elif d["status"] == "finished":
+
                 redis_client.hset(
-                    f"job:{job_id}", "progress", "99"
+
+                    f"job:{job_id}",
+
+                    "progress",
+
+                    "99"
                 )
 
         except Exception:
@@ -224,55 +367,137 @@ def progress_hook(job_id):
     return hook
 
 # =========================================================
-# EXTRACT METADATA
-#
-# Only fetches: title, thumbnail, duration, channel, views.
-# Never touches formats. Cannot fail due to format issues.
-# Returns a static safe format list to the frontend.
+# METADATA EXTRACTION
 # =========================================================
 
 def extract_metadata(url):
-    is_youtube = "youtube.com" in url or "youtu.be" in url
-    opts = get_metadata_opts(is_youtube)
+
+    is_youtube = (
+        "youtube.com" in url
+        or "youtu.be" in url
+    )
+
+    opts = get_metadata_opts(
+        is_youtube
+    )
 
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            # For YouTube, we use process=False to ensure it NEVER tries to validate formats
-            # during the analyze phase. This makes it extremely fast and stable.
-            info = ydl.extract_info(url, download=False, process=(not is_youtube))
 
-            # extract_flat on a playlist gives entries[];
-            # on a single video it returns the video dict.
-            # Handle both safely.
+        with yt_dlp.YoutubeDL(opts) as ydl:
+
+            info = ydl.extract_info(
+
+                url,
+
+                download=False,
+
+                process=(
+                    not is_youtube
+                )
+            )
+
+            # playlist safe
             if info.get("_type") == "playlist":
-                entries = info.get("entries") or []
-                info    = entries[0] if entries else info
+
+                entries = (
+                    info.get("entries")
+                    or []
+                )
+
+                info = (
+                    entries[0]
+                    if entries
+                    else info
+                )
 
             return {
-                "title":     info.get("title",      "Unknown"),
-                "thumbnail": info.get("thumbnail",  ""),
-                "duration":  info.get("duration",   0),
-                "channel":   info.get("uploader",   ""),
-                "views":     info.get("view_count", 0),
 
-                # Static format list shown to the user.
-                # Actual download uses resilient cascading
-                # format strings — see download_video_task.
+                "title":
+                info.get(
+                    "title",
+                    "Unknown"
+                ),
+
+                "thumbnail":
+                info.get(
+                    "thumbnail",
+                    ""
+                ),
+
+                "duration":
+                info.get(
+                    "duration",
+                    0
+                ),
+
+                "channel":
+                info.get(
+                    "uploader",
+                    ""
+                ),
+
+                "views":
+                info.get(
+                    "view_count",
+                    0
+                ),
+
+                # STATIC UI FORMATS
                 "formats": [
+
                     {
-                        "resolution": "720p",
-                        "ext":        "mp4",
-                        "type":       "video",
+                        "resolution":
+                        "1080p",
+
+                        "ext":
+                        "mp4",
+
+                        "type":
+                        "video",
                     },
+
                     {
-                        "resolution": "360p",
-                        "ext":        "mp4",
-                        "type":       "video",
+                        "resolution":
+                        "720p",
+
+                        "ext":
+                        "mp4",
+
+                        "type":
+                        "video",
                     },
+
                     {
-                        "resolution": "audio",
-                        "ext":        "mp3",
-                        "type":       "audio",
+                        "resolution":
+                        "480p",
+
+                        "ext":
+                        "mp4",
+
+                        "type":
+                        "video",
+                    },
+
+                    {
+                        "resolution":
+                        "360p",
+
+                        "ext":
+                        "mp4",
+
+                        "type":
+                        "video",
+                    },
+
+                    {
+                        "resolution":
+                        "audio",
+
+                        "ext":
+                        "mp3",
+
+                        "type":
+                        "audio",
                     },
                 ],
             }
@@ -280,39 +505,46 @@ def extract_metadata(url):
     except Exception as e:
 
         err = re.sub(
+
             r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
+
             "",
+
             str(e)
         )
-        print(f"[metadata error] {err}")
+
+        print(
+            f"[metadata error] "
+            f"{err}"
+        )
+
         raise Exception(err)
 
 # =========================================================
 # FIND FILE
 # =========================================================
 
-def find_downloaded_file(job_id, extension):
+def find_downloaded_file(
+    job_id,
+    extension
+):
 
-    for name in os.listdir(DOWNLOAD_DIR):
-        if name.startswith(job_id) and name.endswith(extension):
-            return os.path.join(DOWNLOAD_DIR, name)
+    for name in os.listdir(
+        DOWNLOAD_DIR
+    ):
+
+        if (
+            name.startswith(job_id)
+            and name.endswith(extension)
+        ):
+
+            return os.path.join(
+                DOWNLOAD_DIR,
+                name
+            )
 
     return None
 
-# =========================================================
-# DOWNLOAD TASK
-#
-# FORMAT STRATEGY — resilient cascading:
-#
-# OLD: "22/18/best"
-#   Hardcoded legacy YouTube format IDs. Fails on Shorts,
-#   newer uploads, age-restricted, and many other videos
-#   that no longer expose format IDs 22 or 18.
-#
-# NEW: capability-based selection with full fallback chain
-#   yt-dlp tries each option left-to-right and picks the
-#   first that actually exists. Never hard-fails on formats.
-# =========================================================
 # =========================================================
 # DOWNLOAD TASK
 # =========================================================
@@ -328,10 +560,7 @@ def download_video_task(
 
     global COOKIE_FILE
 
-    # =====================================================
-    # RELOAD COOKIES
-    # =====================================================
-
+    # reload cookies
     if (
         not COOKIE_FILE
         or not os.path.isfile(COOKIE_FILE)
@@ -340,7 +569,7 @@ def download_video_task(
         COOKIE_FILE = init_cookies()
 
     # =====================================================
-    # OUTPUT EXTENSION
+    # OUTPUT
     # =====================================================
 
     ext = (
@@ -350,7 +579,9 @@ def download_video_task(
     )
 
     output_template = os.path.join(
+
         DOWNLOAD_DIR,
+
         f"{job_id}.%(ext)s"
     )
 
@@ -371,60 +602,78 @@ def download_video_task(
     )
 
     # =====================================================
-    # FINAL STABLE FORMAT FIX
+    # FORMAT FIX
     # =====================================================
 
     if format_type == "audio":
 
-        fmt = "bestaudio/best"
+        fmt = (
+            "bestaudio/"
+            "best"
+        )
 
     else:
 
         if quality == "1080":
 
             fmt = (
-                "bestvideo[height<=1080]"
-                "+bestaudio/"
+
+                "bv*[height<=1080]+ba/"
+
+                "b[height<=1080]/"
+
                 "best"
             )
 
         elif quality == "720":
 
             fmt = (
-                "bestvideo[height<=720]"
-                "+bestaudio/"
+
+                "bv*[height<=720]+ba/"
+
+                "b[height<=720]/"
+
                 "best"
             )
 
         elif quality == "480":
 
             fmt = (
-                "bestvideo[height<=480]"
-                "+bestaudio/"
+
+                "bv*[height<=480]+ba/"
+
+                "b[height<=480]/"
+
                 "best"
             )
 
         elif quality == "360":
 
             fmt = (
-                "bestvideo[height<=360]"
-                "+bestaudio/"
+
+                "bv*[height<=360]+ba/"
+
+                "b[height<=360]/"
+
                 "best"
             )
 
         else:
 
             fmt = (
-                "bestvideo+bestaudio/"
+
+                "bv*+ba/"
+
                 "best"
             )
 
     print(
-        f"[download] format => {fmt}"
+        f"[download] format => "
+        f"{fmt}"
     )
 
     # =====================================================
-    # FINAL STABLE STRATEGY
+    # STABLE STRATEGY
     # =====================================================
 
     strategies = [
@@ -505,7 +754,20 @@ def download_video_task(
                 "extract_flat": False,
 
                 # =========================================
-                # FINAL VIDEO FORMAT
+                # FORMAT PRIORITY
+                # =========================================
+
+                "format_sort": [
+
+                    "res",
+
+                    "codec:h264",
+
+                    "ext:mp4:m4a"
+                ],
+
+                # =========================================
+                # FINAL FORMAT
                 # =========================================
 
                 "merge_output_format": (
