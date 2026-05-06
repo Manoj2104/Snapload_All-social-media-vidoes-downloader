@@ -147,11 +147,11 @@ def extract_metadata(url: str):
     base = _base_opts({"skip_download": True})
 
     # Strategies to try in order
+    # Since cookies are working, 'web' is the best choice for formats.
     strategies = [
+        {"extractor_args": {"youtube": {"player_client": ["web"]}}},
         {"extractor_args": {"youtube": {"player_client": ["ios", "web_creator"]}}},
         {"extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
-        {"extractor_args": {"youtube": {"player_client": ["android"]}}},
-        {"extractor_args": {"youtube": {"player_client": ["web"]}}},
     ] if is_youtube else [{}]
 
     last_error = None
@@ -295,10 +295,9 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
     })
 
     strategies = [
+        {"extractor_args": {"youtube": {"player_client": ["web"]}}},
         {"extractor_args": {"youtube": {"player_client": ["ios", "web_creator"]}}},
         {"extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
-        {"extractor_args": {"youtube": {"player_client": ["android"]}}},
-        {"extractor_args": {"youtube": {"player_client": ["web"]}}},
     ] if is_youtube else [{}]
 
     success = False
