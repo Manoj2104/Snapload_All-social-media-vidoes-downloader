@@ -10,56 +10,48 @@ DOWNLOAD_DIR = os.path.abspath("downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# Cookie Setup — runs once at import time
+# Cookie Setup
 # ---------------------------------------------------------------------------
-# Priority order:
-#   1. YT_COOKIES_FILE  → path to an existing cookies.txt on disk
-#   2. YT_COOKIES_CONTENT → raw Netscape cookie text pasted into env var
-#   3. Default fallback  → "cookies.txt" in the working directory
-
-_COOKIES_FILE: str | None = None
+# Render Secret Files at /etc/secrets/ are READ-ONLY — we must read them,
+# not write to them. We copy the content into our writable DOWNLOAD_DIR once.
 
 def _init_cookies() -> str | None:
-    global _COOKIES_FILE
-
-    # --- Option A: explicit file path env var ---
+    # 1. YT_COOKIES_FILE points to a readable file (e.g. /etc/secrets/cookies.txt)
     env_path = os.environ.get("YT_COOKIES_FILE", "").strip()
-    if env_path:
-        if os.path.isfile(env_path):
-            size = os.path.getsize(env_path)
-            print(f"[cookies] ✅ Loaded from YT_COOKIES_FILE: {env_path} ({size} bytes)")
-            return env_path
-        else:
-            print(f"[cookies] ❌ YT_COOKIES_FILE is set to '{env_path}' but file does NOT exist!")
+    if env_path and os.path.isfile(env_path):
+        # Copy from read-only secret location → writable working dir
+        writable = os.path.join(DOWNLOAD_DIR, "yt_cookies.txt")
+        try:
+            shutil.copy2(env_path, writable)
+            print(f"[cookies] ✅ Copied {env_path} → {writable} ({os.path.getsize(writable)} bytes)")
+            return writable
+        except Exception as e:
+            print(f"[cookies] ❌ Failed to copy from {env_path}: {e}")
 
-    # --- Option B: raw cookie content in env var ---
+    # 2. YT_COOKIES_CONTENT — raw Netscape cookie text pasted as env var
     content = os.environ.get("YT_COOKIES_CONTENT", "").strip()
     if content:
-        target = os.path.join(DOWNLOAD_DIR, "yt_cookies.txt")
+        writable = os.path.join(DOWNLOAD_DIR, "yt_cookies.txt")
         try:
-            with open(target, "w", encoding="utf-8") as f:
+            with open(writable, "w", encoding="utf-8") as f:
                 f.write(content)
-            size = os.path.getsize(target)
-            print(f"[cookies] ✅ Written from YT_COOKIES_CONTENT → {target} ({size} bytes)")
-            return target
+            print(f"[cookies] ✅ Written from YT_COOKIES_CONTENT ({os.path.getsize(writable)} bytes)")
+            return writable
         except Exception as e:
             print(f"[cookies] ❌ Failed to write YT_COOKIES_CONTENT: {e}")
 
-    # --- Option C: cookies.txt in working dir ---
-    cwd_path = os.path.join(os.getcwd(), "cookies.txt")
-    if os.path.isfile(cwd_path):
-        size = os.path.getsize(cwd_path)
-        print(f"[cookies] ✅ Found cookies.txt in working dir: {cwd_path} ({size} bytes)")
-        return cwd_path
+    # 3. cookies.txt in working directory (local dev)
+    cwd = os.path.join(os.getcwd(), "cookies.txt")
+    if os.path.isfile(cwd):
+        print(f"[cookies] ✅ Found cookies.txt in cwd ({os.path.getsize(cwd)} bytes)")
+        return cwd
 
-    print("[cookies] ⚠️  NO cookies found — YouTube will block datacenter IPs!")
-    print("[cookies]    Fix: Set YT_COOKIES_FILE=/etc/secrets/cookies.txt in Render env vars")
-    print("[cookies]    and add cookies.txt as a Secret File in Render dashboard.")
+    print("[cookies] ⚠️  No cookies — YouTube WILL block Render's datacenter IP")
     return None
 
-_COOKIES_FILE = _init_cookies()
+_COOKIES_FILE: str | None = _init_cookies()
 
-PO_TOKEN    = os.environ.get("YT_PO_TOKEN", "").strip() or None
+PO_TOKEN     = os.environ.get("YT_PO_TOKEN", "").strip() or None
 VISITOR_DATA = os.environ.get("YT_VISITOR_DATA", "").strip() or None
 
 # ---------------------------------------------------------------------------
@@ -93,42 +85,26 @@ def _base_opts(extra: dict | None = None) -> dict:
 
 
 def _youtube_strategies() -> list[dict]:
-    """
-    Ordered list of YouTube extraction strategies.
-    Each dict is merged into the base opts for that attempt.
-    Special keys prefixed with '_' are consumed before merging.
-    """
-    strategies = []
-
-    def _yt(label: str, clients: list, format_override: str | None = None) -> dict:
+    def _s(label, clients, fmt=None):
         s = {
             "_label": label,
-            "_format_override": format_override,
+            "_format_override": fmt,
             "extractor_args": {"youtube": {"player_client": clients}},
         }
         if PO_TOKEN:
             s["extractor_args"]["youtube"]["po_token"] = [f"web+{PO_TOKEN}"]
         if VISITOR_DATA:
             s["extractor_args"]["youtube"]["visitor_data"] = VISITOR_DATA
-        if _COOKIES_FILE:
+        if _COOKIES_FILE and os.path.isfile(_COOKIES_FILE):
             s["cookiefile"] = _COOKIES_FILE
         return s
 
-    # web gives ALL formats (1080p/4K) — needs cookies on datacenter IPs
-    strategies.append(_yt("web (full formats)", ["web"]))
-
-    # web_creator — trusted client, usually bypasses bot check, most formats
-    strategies.append(_yt("web_creator", ["web_creator"]))
-
-    # android — mobile client, different rate limits, up to 1080p
-    strategies.append(_yt("android", ["android"]))
-
-    # tv_embedded — almost never blocked, but only progressive formats ≤720p
-    # Force "best" so we don't get "format not available" for high-res requests
-    strategies.append(_yt("tv_embedded (fallback, limited quality)", ["tv_embedded"],
-                          format_override="best"))
-
-    return strategies
+    return [
+        _s("web (full formats)",                  ["web"]),
+        _s("web_creator",                         ["web_creator"]),
+        _s("android",                             ["android"]),
+        _s("tv_embedded (limited, no bot check)", ["tv_embedded"], fmt="best"),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +114,6 @@ def _youtube_strategies() -> list[dict]:
 def extract_metadata(url: str):
     is_youtube = "youtube.com" in url or "youtu.be" in url
     base = _base_opts({"skip_download": True})
-
     strategies = _youtube_strategies() if is_youtube else [{"_label": "default", "_format_override": None}]
 
     last_error = None
@@ -146,7 +121,7 @@ def extract_metadata(url: str):
         label = strategy.pop("_label", "default")
         strategy.pop("_format_override", None)
         opts = {**base, **strategy}
-        print(f"[metadata] trying: {label}")
+        print(f"[metadata] trying: {label} | cookies: {'✅' if _COOKIES_FILE else '❌'}")
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -180,11 +155,10 @@ def extract_metadata(url: str):
             raw = str(e)
             last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", raw)
             print(f"[metadata] {label} failed: {last_error}")
-            bot_keywords = ["sign in", "bot", "cookie", "lock", "permission", "confirm"]
-            if not any(kw in last_error.lower() for kw in bot_keywords):
+            if not any(k in last_error.lower() for k in ["sign in", "bot", "cookie", "confirm", "permission", "not available"]):
                 break
 
-    raise Exception(last_error or "Extraction failed after all attempts")
+    raise Exception(last_error or "Extraction failed")
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +169,8 @@ def cleanup_downloads():
     if not os.path.exists(DOWNLOAD_DIR):
         return
     for name in os.listdir(DOWNLOAD_DIR):
+        if name == "yt_cookies.txt":
+            continue  # never delete cookies
         path = os.path.join(DOWNLOAD_DIR, name)
         try:
             if os.path.isfile(path):
@@ -202,7 +178,7 @@ def cleanup_downloads():
             elif os.path.isdir(path):
                 shutil.rmtree(path)
         except Exception as e:
-            print(f"[cleanup] error removing {name}: {e}")
+            print(f"[cleanup] {name}: {e}")
 
 
 def _progress_hook(job_id: str):
@@ -211,8 +187,7 @@ def _progress_hook(job_id: str):
             if d["status"] == "downloading":
                 raw = d.get("_percent_str", "0%")
                 clean = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", raw)
-                percent = float(clean.replace("%", "").strip())
-                redis_client.hset(f"job:{job_id}", "progress", str(percent))
+                redis_client.hset(f"job:{job_id}", "progress", str(float(clean.replace("%", "").strip())))
             elif d["status"] == "finished":
                 redis_client.hset(f"job:{job_id}", "progress", "99")
         except Exception:
@@ -221,12 +196,11 @@ def _progress_hook(job_id: str):
 
 
 def _find_downloaded_file(job_id: str, expected_ext: str) -> str | None:
-    candidates = [
+    for p in [
         os.path.join(DOWNLOAD_DIR, f"{job_id}_raw.{expected_ext}"),
         os.path.join(DOWNLOAD_DIR, f"{job_id}_raw.temp.{expected_ext}"),
         os.path.join(DOWNLOAD_DIR, f"{job_id}_raw"),
-    ]
-    for p in candidates:
+    ]:
         if os.path.exists(p):
             return p
     for name in os.listdir(DOWNLOAD_DIR):
@@ -253,18 +227,17 @@ def _build_format_str(format_type: str, res: int) -> str:
 def download_video_task(job_id: str, url: str, format_type: str, quality: str):
     cleanup_downloads()
 
-    # Re-check cookies on every job in case file appeared after startup
+    # Re-init cookies in case the file was cleaned up
     global _COOKIES_FILE
-    if not _COOKIES_FILE:
+    if not _COOKIES_FILE or not os.path.isfile(_COOKIES_FILE):
         _COOKIES_FILE = _init_cookies()
 
     is_youtube = "youtube.com" in url or "youtu.be" in url
-    res_map = {"4k": 2160, "1080p": 1080, "720p": 720, "480p": 480}
-    res = res_map.get(quality.lower(), 2160)
+    res = {"4k": 2160, "1080p": 1080, "720p": 720, "480p": 480}.get(quality.lower(), 2160)
     ext = "mp3" if format_type == "audio" else "mp4"
-    final_file_path = os.path.join(DOWNLOAD_DIR, f"{job_id}.{ext}")
+    final_path = os.path.join(DOWNLOAD_DIR, f"{job_id}.{ext}")
 
-    base_dl_opts = _base_opts({
+    base_dl = _base_opts({
         "quiet": False,
         "outtmpl": os.path.join(DOWNLOAD_DIR, f"{job_id}_raw.%(ext)s"),
         "progress_hooks": [_progress_hook(job_id)],
@@ -289,17 +262,16 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
     })
 
     strategies = _youtube_strategies() if is_youtube else [{"_label": "default", "_format_override": None}]
-
     success = False
     last_error = None
 
     for strategy in strategies:
         label = strategy.pop("_label", "default")
-        format_override = strategy.pop("_format_override", None)
-        format_str = format_override if format_override else _build_format_str(format_type, res)
+        fmt_override = strategy.pop("_format_override", None)
+        fmt = fmt_override or _build_format_str(format_type, res)
+        opts = {**base_dl, **strategy, "format": fmt}
 
-        opts = {**base_dl_opts, **strategy, "format": format_str}
-        print(f"[download] strategy: {label} | cookies: {'YES ✅' if _COOKIES_FILE else 'NO ❌'}")
+        print(f"[download] {label} | fmt: {fmt[:50]} | cookies: {'✅' if _COOKIES_FILE else '❌'}")
 
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -314,32 +286,29 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
                             raise
 
             time.sleep(2)
-            expected_ext = "mp3" if format_type == "audio" else "mp4"
-            downloaded_file = _find_downloaded_file(job_id, expected_ext)
+            dl_file = _find_downloaded_file(job_id, "mp3" if format_type == "audio" else "mp4")
 
-            if downloaded_file:
+            if dl_file:
                 for _ in range(15):
                     try:
-                        if os.path.exists(final_file_path):
-                            os.remove(final_file_path)
-                        shutil.move(downloaded_file, final_file_path)
+                        if os.path.exists(final_path):
+                            os.remove(final_path)
+                        shutil.move(dl_file, final_path)
                         success = True
-                        print(f"[download] ✅ finalized: {final_file_path}")
+                        print(f"[download] ✅ {final_path}")
                         break
                     except Exception:
                         time.sleep(1)
 
             if success:
                 for name in os.listdir(DOWNLOAD_DIR):
-                    if job_id in name and name != f"{job_id}.{ext}":
+                    if job_id in name and name != f"{job_id}.{ext}" and name != "yt_cookies.txt":
                         try:
                             os.remove(os.path.join(DOWNLOAD_DIR, name))
                         except Exception:
                             pass
                 redis_client.hset(f"job:{job_id}", mapping={
-                    "status": "completed",
-                    "progress": "100",
-                    "downloadUrl": final_file_path,
+                    "status": "completed", "progress": "100", "downloadUrl": final_path,
                 })
                 break
 
@@ -347,15 +316,10 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
             raw = str(e)
             last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", raw)
             print(f"[download] {label} failed: {last_error}")
-
-            bot_keywords = ["sign in", "bot", "cookie", "confirm", "permission"]
-            format_keywords = ["not available", "requested format"]
-            if any(kw in last_error.lower() for kw in bot_keywords):
-                continue  # Try next strategy
-            elif any(kw in last_error.lower() for kw in format_keywords):
-                continue  # Format not in this client, try next
-            else:
-                break     # Unrecoverable error
+            # Always try next strategy for bot/format errors
+            recoverable = ["sign in", "bot", "cookie", "confirm", "permission", "not available", "requested format"]
+            if not any(k in last_error.lower() for k in recoverable):
+                break
 
     if not success:
         redis_client.hset(f"job:{job_id}", mapping={
