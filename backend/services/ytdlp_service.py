@@ -2,8 +2,6 @@ import yt_dlp
 import os
 import re
 import shutil
-import time
-
 from services.redis_service import redis_client
 
 # =========================================================
@@ -11,11 +9,7 @@ from services.redis_service import redis_client
 # =========================================================
 
 DOWNLOAD_DIR = os.path.abspath("downloads")
-
-os.makedirs(
-    DOWNLOAD_DIR,
-    exist_ok=True
-)
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # =========================================================
 # COOKIE SETUP
@@ -34,10 +28,7 @@ def init_cookies():
         and os.path.getsize(writable_cookie) > 100
     ):
 
-        print(
-            f"[cookies] loaded: "
-            f"{writable_cookie}"
-        )
+        print(f"[cookies] loaded: {writable_cookie}")
 
         return writable_cookie
 
@@ -60,18 +51,15 @@ def init_cookies():
             )
 
             print(
-                "[cookies] copied "
-                "from render secret"
+                f"[cookies] copied from render secret: "
+                f"{writable_cookie}"
             )
 
             return writable_cookie
 
         except Exception as e:
 
-            print(
-                f"[cookies] copy failed: "
-                f"{e}"
-            )
+            print(f"[cookies] copy failed: {e}")
 
     # raw env content
     env_cookie_content = os.environ.get(
@@ -89,50 +77,41 @@ def init_cookies():
                 encoding="utf-8"
             ) as f:
 
-                f.write(
-                    env_cookie_content
-                )
+                f.write(env_cookie_content)
 
             print(
-                "[cookies] loaded "
-                "from env content"
+                f"[cookies] loaded from env content"
             )
 
             return writable_cookie
 
         except Exception as e:
 
-            print(
-                f"[cookies] write failed: "
-                f"{e}"
-            )
+            print(f"[cookies] write failed: {e}")
 
     # local fallback
-    if os.path.isfile("cookies.txt"):
+    local_cookie = "cookies.txt"
+
+    if os.path.isfile(local_cookie):
 
         try:
 
             shutil.copy2(
-                "cookies.txt",
+                local_cookie,
                 writable_cookie
             )
 
-            print(
-                "[cookies] local loaded"
-            )
+            print("[cookies] local loaded")
 
             return writable_cookie
 
         except Exception as e:
 
-            print(
-                f"[cookies] local failed: "
-                f"{e}"
-            )
+            print(f"[cookies] local failed: {e}")
 
     print(
         "[cookies] WARNING: "
-        "No cookies found"
+        "no cookies found"
     )
 
     return None
@@ -188,7 +167,7 @@ def get_common_opts():
                 "(Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 "
                 "(KHTML, like Gecko) "
-                "Chrome/137.0.0.0 "
+                "Chrome/124.0.0.0 "
                 "Safari/537.36"
             ),
 
@@ -196,10 +175,7 @@ def get_common_opts():
             "en-US,en;q=0.9",
         },
 
-        # =================================================
-        # FINAL YOUTUBE FIX
-        # =================================================
-
+        # ONLY WEB CLIENT
         "extractor_args": {
 
             "youtube": {
@@ -208,13 +184,6 @@ def get_common_opts():
                     "web"
                 ]
             }
-        },
-
-        # IMPORTANT
-        # NODE JS RUNTIME
-        "js_runtimes": {
-
-            "node": "node"
         },
     }
 
@@ -264,9 +233,7 @@ def cleanup_downloads():
 
         except Exception as e:
 
-            print(
-                f"[cleanup] {e}"
-            )
+            print(f"[cleanup] {e}")
 
 # =========================================================
 # PROGRESS HOOK
@@ -292,10 +259,8 @@ def progress_hook(job_id):
                 )
 
                 value = float(
-                    clean.replace(
-                        "%",
-                        ""
-                    ).strip()
+                    clean.replace("%", "")
+                    .strip()
                 )
 
                 redis_client.hset(
@@ -323,50 +288,13 @@ def progress_hook(job_id):
 
 def extract_metadata(url):
 
+    opts = get_common_opts()
+
+    # IMPORTANT
+    # Avoid format validation
+    opts["extract_flat"] = True
+
     try:
-
-        # =================================================
-        # IMPORTANT
-        # DO NOT USE get_common_opts()
-        # =================================================
-
-        opts = {
-
-            "quiet": True,
-
-            "skip_download": True,
-
-            "extract_flat": True,
-
-            "nocheckcertificate": True,
-
-            "ignoreerrors": False,
-
-            "http_headers": {
-
-                "User-Agent": (
-                    "Mozilla/5.0 "
-                    "(Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) "
-                    "Chrome/137.0.0.0 "
-                    "Safari/537.36"
-                )
-            },
-
-            "js_runtimes": {
-
-                "node": "node"
-            },
-        }
-
-        # cookies
-        if (
-            COOKIE_FILE
-            and os.path.isfile(COOKIE_FILE)
-        ):
-
-            opts["cookiefile"] = COOKIE_FILE
 
         with yt_dlp.YoutubeDL(opts) as ydl:
 
@@ -378,78 +306,39 @@ def extract_metadata(url):
             return {
 
                 "title":
-                info.get(
-                    "title",
-                    "Unknown"
-                ),
+                info.get("title", "Unknown"),
 
                 "thumbnail":
-                info.get(
-                    "thumbnail",
-                    ""
-                ),
+                info.get("thumbnail", ""),
 
                 "duration":
-                info.get(
-                    "duration",
-                    0
-                ),
+                info.get("duration", 0),
 
                 "channel":
-                info.get(
-                    "uploader",
-                    ""
-                ),
+                info.get("uploader", ""),
 
                 "views":
-                info.get(
-                    "view_count",
-                    0
-                ),
+                info.get("view_count", 0),
 
                 # STATIC SAFE FORMATS
                 "formats": [
 
                     {
-                        "format_id":
-                        "22",
-
-                        "resolution":
-                        "720p",
-
-                        "ext":
-                        "mp4",
-
-                        "type":
-                        "video",
+                        "resolution": "720p",
+                        "ext": "mp4",
+                        "type": "video",
                     },
 
                     {
-                        "format_id":
-                        "18",
-
-                        "resolution":
-                        "360p",
-
-                        "ext":
-                        "mp4",
-
-                        "type":
-                        "video",
+                        "resolution": "360p",
+                        "ext": "mp4",
+                        "type": "video",
                     },
 
                     {
-                        "format_id":
-                        "140",
-
-                        "resolution":
-                        "audio",
-
-                        "ext":
-                        "mp3",
-
-                        "type":
-                        "audio",
+                        "resolution": "audio",
+                        "ext": "mp3",
+                        "type": "audio",
                     }
                 ]
             }
@@ -462,10 +351,7 @@ def extract_metadata(url):
             str(e)
         )
 
-        print(
-            f"[metadata error] "
-            f"{err}"
-        )
+        print(f"[metadata error] {err}")
 
         raise Exception(err)
 
@@ -527,188 +413,129 @@ def download_video_task(
     )
 
     # =====================================================
-    # FINAL SAFE FORMATS
+    # SAFE FORMAT
     # =====================================================
 
     if format_type == "audio":
 
-        fmt = (
-            "140/"
-            "251/"
-            "bestaudio/"
-            "best"
-        )
+        # direct audio format
+        fmt = "140/251/bestaudio"
 
     else:
 
-        fmt = (
-            "22/"
-            "18/"
-            "best[ext=mp4]/"
-            "best"
+        # SAFE merged formats only
+        # 18 = 360p mp4
+        # 22 = 720p mp4
+        fmt = "22/18/best"
+
+    print(f"[download] format: {fmt}")
+
+    print(
+        f"[download] cookies: "
+        f"{COOKIE_FILE or 'NONE'}"
+    )
+
+    opts = get_common_opts()
+
+    opts.update({
+
+        "format": fmt,
+
+        "outtmpl": output_template,
+
+        "progress_hooks": [
+            progress_hook(job_id)
+        ],
+
+        "nopart": True,
+
+        "continuedl": True,
+
+        "overwrites": True,
+    })
+
+    # =====================================================
+    # AUDIO POSTPROCESS
+    # =====================================================
+
+    if format_type == "audio":
+
+        opts["postprocessors"] = [{
+
+            "key":
+            "FFmpegExtractAudio",
+
+            "preferredcodec":
+            "mp3",
+
+            "preferredquality":
+            "192",
+        }]
+
+    # =====================================================
+    # DOWNLOAD
+    # =====================================================
+
+    try:
+
+        with yt_dlp.YoutubeDL(opts) as ydl:
+
+            ydl.download([url])
+
+        final_file = find_downloaded_file(
+            job_id,
+            ".mp3" if format_type == "audio"
+            else ".mp4"
         )
 
-    print(
-        f"[download] format => "
-        f"{fmt}"
-    )
+        if not final_file:
 
-    last_error = None
-
-    for client in [
-
-        "web",
-
-        "android",
-
-        "tv_embedded"
-    ]:
-
-        try:
-
-            print(
-                f"[download] trying => "
-                f"{client}"
+            raise Exception(
+                "Downloaded file not found"
             )
 
-            opts = get_common_opts()
+        redis_client.hset(
 
-            opts["extractor_args"] = {
+            f"job:{job_id}",
 
-                "youtube": {
+            mapping={
 
-                    "player_client": [
-                        client
-                    ]
-                }
+                "status":
+                "completed",
+
+                "progress":
+                "100",
+
+                "downloadUrl":
+                final_file,
             }
+        )
 
-            opts.update({
+        print(
+            f"[download completed] "
+            f"{final_file}"
+        )
 
-                "format": fmt,
+    except Exception as e:
 
-                "format_sort": [
-                    "res",
-                    "ext:mp4:m4a"
-                ],
+        err = re.sub(
+            r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
+            "",
+            str(e)
+        )
 
-                "outtmpl":
-                output_template,
+        print(f"[download error] {err}")
 
-                "progress_hooks": [
-                    progress_hook(job_id)
-                ],
+        redis_client.hset(
 
-                "nopart": True,
+            f"job:{job_id}",
 
-                "continuedl": True,
+            mapping={
 
-                "overwrites": True,
+                "status":
+                "failed",
 
-                "noplaylist": True,
-            })
-
-            # =================================================
-            # AUDIO CONVERT
-            # =================================================
-
-            if format_type == "audio":
-
-                opts["postprocessors"] = [{
-
-                    "key":
-                    "FFmpegExtractAudio",
-
-                    "preferredcodec":
-                    "mp3",
-
-                    "preferredquality":
-                    "192",
-                }]
-
-            # =================================================
-            # DOWNLOAD
-            # =================================================
-
-            with yt_dlp.YoutubeDL(opts) as ydl:
-
-                ydl.download([url])
-
-            final_file = find_downloaded_file(
-
-                job_id,
-
-                ".mp3"
-                if format_type == "audio"
-                else ".mp4"
-            )
-
-            if not final_file:
-
-                raise Exception(
-                    "Downloaded file not found"
-                )
-
-            redis_client.hset(
-
-                f"job:{job_id}",
-
-                mapping={
-
-                    "status":
-                    "completed",
-
-                    "progress":
-                    "100",
-
-                    "downloadUrl":
-                    final_file,
-                }
-            )
-
-            print(
-                f"[download completed] "
-                f"{final_file}"
-            )
-
-            return
-
-        except Exception as e:
-
-            err = re.sub(
-                r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
-                "",
-                str(e)
-            )
-
-            print(
-                f"[client {client}] "
-                f"{err}"
-            )
-
-            last_error = err
-
-            time.sleep(1)
-
-    # =====================================================
-    # FAILED
-    # =====================================================
-
-    redis_client.hset(
-
-        f"job:{job_id}",
-
-        mapping={
-
-            "status":
-            "failed",
-
-            "error":
-            last_error or "Download failed",
-        }
-    )
-
-    print(
-        f"[download failed] "
-        f"{last_error}"
-    )
+                "error":
+                err,
+            }
+        )
