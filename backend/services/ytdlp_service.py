@@ -313,164 +313,325 @@ def find_downloaded_file(job_id, extension):
 #   yt-dlp tries each option left-to-right and picks the
 #   first that actually exists. Never hard-fails on formats.
 # =========================================================
+# =========================================================
+# DOWNLOAD TASK
+# =========================================================
+
 def download_video_task(
     job_id,
     url,
     format_type,
     quality
 ):
+
     cleanup_downloads()
+
     global COOKIE_FILE
 
-    # reload cookies if missing
-    if not COOKIE_FILE or not os.path.isfile(COOKIE_FILE):
+    # =====================================================
+    # RELOAD COOKIES
+    # =====================================================
+
+    if (
+        not COOKIE_FILE
+        or not os.path.isfile(COOKIE_FILE)
+    ):
+
         COOKIE_FILE = init_cookies()
 
-    output_template = os.path.join(DOWNLOAD_DIR, f"{job_id}.%(ext)s")
-    res_val = {"4k": 2160, "1080p": 1080, "720p": 720, "480p": 480}.get(quality.lower(), 720)
+    # =====================================================
+    # OUTPUT EXTENSION
+    # =====================================================
 
-    # 1. Choose Format String (Ultra-Resilient)
-    if format_type == "audio":
-        fmt = "bestaudio/best"
-    else:
-        # Use a cascade that handles both DASH/HLS and progressive formats
-        fmt = (
-        f"bv*[height<={res_val}]+ba/"
-        f"b[height<={res_val}]/"
-        f"best"
+    ext = (
+        "mp3"
+        if format_type == "audio"
+        else "mp4"
     )
 
-    # 2. Strategy Loop for Download
-    # web_creator/ios combination is best for high resolution + stability
-    is_youtube = "youtube.com" in url or "youtu.be" in url
+    output_template = os.path.join(
+        DOWNLOAD_DIR,
+        f"{job_id}.%(ext)s"
+    )
+
+    # =====================================================
+    # DETECT YOUTUBE
+    # =====================================================
+
+    is_youtube = any(
+
+        x in url.lower()
+
+        for x in [
+
+            "youtube.com",
+
+            "youtu.be"
+        ]
+    )
+
+    # =====================================================
+    # FINAL STABLE FORMAT FIX
+    # =====================================================
+
+    if format_type == "audio":
+
+        fmt = "bestaudio/best"
+
+    else:
+
+        if quality == "1080":
+
+            fmt = (
+                "bestvideo[height<=1080]"
+                "+bestaudio/"
+                "best"
+            )
+
+        elif quality == "720":
+
+            fmt = (
+                "bestvideo[height<=720]"
+                "+bestaudio/"
+                "best"
+            )
+
+        elif quality == "480":
+
+            fmt = (
+                "bestvideo[height<=480]"
+                "+bestaudio/"
+                "best"
+            )
+
+        elif quality == "360":
+
+            fmt = (
+                "bestvideo[height<=360]"
+                "+bestaudio/"
+                "best"
+            )
+
+        else:
+
+            fmt = (
+                "bestvideo+bestaudio/"
+                "best"
+            )
+
+    print(
+        f"[download] format => {fmt}"
+    )
+
+    # =====================================================
+    # FINAL STABLE STRATEGY
+    # =====================================================
+
     strategies = [
 
         {
             "extractor_args": {
-                "youtube": {
-                    "player_client": ["ios"]
-                }
-            }
-        },
 
-        {
-            "extractor_args": {
                 "youtube": {
-                    "player_client": ["android"]
+
+                    "player_client": [
+                        "android"
+                    ]
                 }
             }
         }
+    ]
 
-    ]if is_youtube else [{}]
-
-    success = False
     last_error = None
+
+    # =====================================================
+    # TRY STRATEGIES
+    # =====================================================
 
     for strategy in strategies:
 
-        opts = get_common_opts(
-            is_youtube,
-            is_download=True
-        )
-
-        opts.update(strategy)
-
-        opts.update({
-
-            # =================================================
-            # FINAL STABLE FORMAT FIX
-            # =================================================
-
-            "format": fmt,
-
-            # =================================================
-            # OUTPUT
-            # =================================================
-
-            "outtmpl": output_template,
-
-            # =================================================
-            # DOWNLOAD PROGRESS
-            # =================================================
-
-            "progress_hooks": [
-                progress_hook(job_id)
-            ],
-
-            # =================================================
-            # DOWNLOAD SETTINGS
-            # =================================================
-
-            "nopart": True,
-
-            "continuedl": True,
-
-            "overwrites": True,
-
-            # =================================================
-            # FORCE FINAL VIDEO FORMAT
-            # =================================================
-
-            "merge_output_format": (
-                "mp4"
-                if format_type != "audio"
-                else None
-            ),
-
-            # =================================================
-            # FORMAT PRIORITY
-            # =================================================
-
-            "format_sort": [
-
-                # prefer requested resolution
-                "res",
-
-                # prefer h264 codec
-                "codec:h264",
-
-                # prefer mp4+m4a combo
-                "ext:mp4:m4a"
-            ],
-
-            # =================================================
-            # YOUTUBE STABILITY
-            # =================================================
-
-            "noplaylist": True,
-
-            "extract_flat": False,
-
-            "allow_unplayable_formats": False,
-        })
-
-        if format_type == "audio":
-            opts["postprocessors"] = [{
-                "key":              "FFmpegExtractAudio",
-                "preferredcodec":   "mp3",
-                "preferredquality": "192",
-            }]
-
         try:
-            print(f"[download] Strategy: {strategy.get('extractor_args', {}).get('youtube', {}).get('player_client', 'default')}")
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                ydl.download([url])
-            
-            # Verify file exists
-            ext_final = "mp3" if format_type == "audio" else "mp4"
-            if find_downloaded_file(job_id, f".{ext_final}"):
-                success = True
-                break
-        except Exception as e:
-            last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", str(e))
-            print(f"[download strategy failed] {last_error}")
-            if "not a valid URL" in last_error: break
 
-    # 3. Update Status
-    if success:
-        ext_final = "mp3" if format_type == "audio" else "mp4"
-        final_file = find_downloaded_file(job_id, f".{ext_final}")
-        redis_client.hset(f"job:{job_id}", mapping={"status": "completed", "progress": "100", "downloadUrl": final_file})
-        print(f"[download completed] {final_file}")
-    else:
-        redis_client.hset(f"job:{job_id}", mapping={"status": "failed", "error": last_error or "Download failed"})
+            print(
+                f"[download] Strategy: "
+                f"{strategy['extractor_args']['youtube']['player_client']}"
+            )
+
+            opts = get_common_opts(
+
+                is_youtube,
+
+                is_download=True
+            )
+
+            opts.update(strategy)
+
+            opts.update({
+
+                # =========================================
+                # FORMAT
+                # =========================================
+
+                "format": fmt,
+
+                # =========================================
+                # OUTPUT
+                # =========================================
+
+                "outtmpl":
+                output_template,
+
+                # =========================================
+                # PROGRESS
+                # =========================================
+
+                "progress_hooks": [
+
+                    progress_hook(job_id)
+                ],
+
+                # =========================================
+                # DOWNLOAD SETTINGS
+                # =========================================
+
+                "nopart": True,
+
+                "continuedl": True,
+
+                "overwrites": True,
+
+                "noplaylist": True,
+
+                "extract_flat": False,
+
+                # =========================================
+                # FINAL VIDEO FORMAT
+                # =========================================
+
+                "merge_output_format": (
+
+                    "mp4"
+
+                    if format_type != "audio"
+
+                    else None
+                ),
+            })
+
+            # =============================================
+            # AUDIO POST PROCESS
+            # =============================================
+
+            if format_type == "audio":
+
+                opts["postprocessors"] = [{
+
+                    "key":
+                    "FFmpegExtractAudio",
+
+                    "preferredcodec":
+                    "mp3",
+
+                    "preferredquality":
+                    "192",
+                }]
+
+            # =============================================
+            # DOWNLOAD
+            # =============================================
+
+            with yt_dlp.YoutubeDL(opts) as ydl:
+
+                ydl.download([url])
+
+            # =============================================
+            # FIND FILE
+            # =============================================
+
+            final_file = find_downloaded_file(
+
+                job_id,
+
+                ".mp3"
+
+                if format_type == "audio"
+
+                else ".mp4"
+            )
+
+            if not final_file:
+
+                raise Exception(
+                    "Downloaded file not found"
+                )
+
+            # =============================================
+            # SUCCESS
+            # =============================================
+
+            redis_client.hset(
+
+                f"job:{job_id}",
+
+                mapping={
+
+                    "status":
+                    "completed",
+
+                    "progress":
+                    "100",
+
+                    "downloadUrl":
+                    final_file,
+                }
+            )
+
+            print(
+                f"[download completed] "
+                f"{final_file}"
+            )
+
+            return
+
+        except Exception as e:
+
+            err = re.sub(
+
+                r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
+
+                "",
+
+                str(e)
+            )
+
+            print(
+                f"[download strategy failed] "
+                f"{err}"
+            )
+
+            last_error = err
+
+            time.sleep(1)
+
+    # =====================================================
+    # FAILED
+    # =====================================================
+
+    redis_client.hset(
+
+        f"job:{job_id}",
+
+        mapping={
+
+            "status":
+            "failed",
+
+            "error":
+            last_error or "Download failed",
+        }
+    )
+
+    print(
+        f"[download failed] "
+        f"{last_error}"
+    )
