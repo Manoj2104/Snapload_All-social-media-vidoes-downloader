@@ -10,52 +10,50 @@ DOWNLOAD_DIR = os.path.abspath("downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# Cookie Setup
+# Cookie Setup — copies read-only secret to writable location
 # ---------------------------------------------------------------------------
-# Render Secret Files at /etc/secrets/ are READ-ONLY — we must read them,
-# not write to them. We copy the content into our writable DOWNLOAD_DIR once.
-
 def _init_cookies() -> str | None:
-    # 1. YT_COOKIES_FILE points to a readable file (e.g. /etc/secrets/cookies.txt)
+    writable = os.path.join(DOWNLOAD_DIR, "yt_cookies.txt")
+
+    # Already copied and ready
+    if os.path.isfile(writable) and os.path.getsize(writable) > 100:
+        print(f"[cookies] ✅ Using cached cookies ({os.path.getsize(writable)} bytes)")
+        return writable
+
+    # Copy from Render Secret File (read-only) → writable downloads dir
     env_path = os.environ.get("YT_COOKIES_FILE", "").strip()
     if env_path and os.path.isfile(env_path):
-        # Copy from read-only secret location → writable working dir
-        writable = os.path.join(DOWNLOAD_DIR, "yt_cookies.txt")
         try:
             shutil.copy2(env_path, writable)
             print(f"[cookies] ✅ Copied {env_path} → {writable} ({os.path.getsize(writable)} bytes)")
             return writable
         except Exception as e:
-            print(f"[cookies] ❌ Failed to copy from {env_path}: {e}")
+            print(f"[cookies] ❌ Copy failed: {e}")
 
-    # 2. YT_COOKIES_CONTENT — raw Netscape cookie text pasted as env var
+    # Raw cookie text in env var
     content = os.environ.get("YT_COOKIES_CONTENT", "").strip()
     if content:
-        writable = os.path.join(DOWNLOAD_DIR, "yt_cookies.txt")
         try:
             with open(writable, "w", encoding="utf-8") as f:
                 f.write(content)
-            print(f"[cookies] ✅ Written from YT_COOKIES_CONTENT ({os.path.getsize(writable)} bytes)")
+            print(f"[cookies] ✅ Written from env var ({os.path.getsize(writable)} bytes)")
             return writable
         except Exception as e:
-            print(f"[cookies] ❌ Failed to write YT_COOKIES_CONTENT: {e}")
+            print(f"[cookies] ❌ Write failed: {e}")
 
-    # 3. cookies.txt in working directory (local dev)
-    cwd = os.path.join(os.getcwd(), "cookies.txt")
-    if os.path.isfile(cwd):
-        print(f"[cookies] ✅ Found cookies.txt in cwd ({os.path.getsize(cwd)} bytes)")
-        return cwd
+    # Local dev fallback
+    for p in ["cookies.txt", os.path.join(os.getcwd(), "cookies.txt")]:
+        if os.path.isfile(p):
+            print(f"[cookies] ✅ Using local {p}")
+            return p
 
-    print("[cookies] ⚠️  No cookies — YouTube WILL block Render's datacenter IP")
+    print("[cookies] ⚠️  No cookies — YouTube will block this IP!")
     return None
 
 _COOKIES_FILE: str | None = _init_cookies()
 
-PO_TOKEN     = os.environ.get("YT_PO_TOKEN", "").strip() or None
-VISITOR_DATA = os.environ.get("YT_VISITOR_DATA", "").strip() or None
-
 # ---------------------------------------------------------------------------
-# Shared helpers
+# Helpers
 # ---------------------------------------------------------------------------
 
 def _base_opts(extra: dict | None = None) -> dict:
@@ -73,7 +71,6 @@ def _base_opts(extra: dict | None = None) -> dict:
                 "Chrome/124.0.0.0 Safari/537.36"
             ),
             "Accept-Language": "en-US,en;q=0.9",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
         "sleep_interval": 1,
         "max_sleep_interval": 3,
@@ -84,27 +81,55 @@ def _base_opts(extra: dict | None = None) -> dict:
     return opts
 
 
-def _youtube_strategies() -> list[dict]:
-    def _s(label, clients, fmt=None):
-        s = {
-            "_label": label,
-            "_format_override": fmt,
-            "extractor_args": {"youtube": {"player_client": clients}},
-        }
-        if PO_TOKEN:
-            s["extractor_args"]["youtube"]["po_token"] = [f"web+{PO_TOKEN}"]
-        if VISITOR_DATA:
-            s["extractor_args"]["youtube"]["visitor_data"] = VISITOR_DATA
-        if _COOKIES_FILE and os.path.isfile(_COOKIES_FILE):
-            s["cookiefile"] = _COOKIES_FILE
-        return s
+def _yt_opts(base: dict) -> dict:
+    """Add YouTube-specific options to a base opts dict."""
+    opts = dict(base)
+    opts["extractor_args"] = {
+        "youtube": {"player_client": ["web"]}
+    }
+    if _COOKIES_FILE and os.path.isfile(_COOKIES_FILE):
+        opts["cookiefile"] = _COOKIES_FILE
+    return opts
 
-    return [
-        _s("web (full formats)",                  ["web"]),
-        _s("web_creator",                         ["web_creator"]),
-        _s("android",                             ["android"]),
-        _s("tv_embedded (limited, no bot check)", ["tv_embedded"], fmt="best"),
-    ]
+
+def _format_str(format_type: str, res: int) -> str:
+    """
+    Simple, proven format strings. 
+    YouTube with web client + cookies returns standard mp4/m4a streams.
+    """
+    if format_type == "audio":
+        return "bestaudio/best"
+
+    # These are the ONLY format strings that reliably work.
+    # We try from most specific → least specific.
+    # The final "bestvideo+bestaudio/best" ALWAYS succeeds.
+    quality_map = {
+        2160: (
+            "bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]"
+            "/bestvideo[height<=2160]+bestaudio"
+            "/bestvideo+bestaudio"
+            "/best"
+        ),
+        1080: (
+            "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]"
+            "/bestvideo[height<=1080]+bestaudio"
+            "/bestvideo+bestaudio"
+            "/best"
+        ),
+        720: (
+            "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]"
+            "/bestvideo[height<=720]+bestaudio"
+            "/bestvideo+bestaudio"
+            "/best"
+        ),
+        480: (
+            "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]"
+            "/bestvideo[height<=480]+bestaudio"
+            "/bestvideo+bestaudio"
+            "/best"
+        ),
+    }
+    return quality_map.get(res, "bestvideo+bestaudio/best")
 
 
 # ---------------------------------------------------------------------------
@@ -114,51 +139,39 @@ def _youtube_strategies() -> list[dict]:
 def extract_metadata(url: str):
     is_youtube = "youtube.com" in url or "youtu.be" in url
     base = _base_opts({"skip_download": True})
-    strategies = _youtube_strategies() if is_youtube else [{"_label": "default", "_format_override": None}]
+    opts = _yt_opts(base) if is_youtube else base
 
-    last_error = None
-    for strategy in strategies:
-        label = strategy.pop("_label", "default")
-        strategy.pop("_format_override", None)
-        opts = {**base, **strategy}
-        print(f"[metadata] trying: {label} | cookies: {'✅' if _COOKIES_FILE else '❌'}")
-
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                formats = []
-                for f in info.get("formats", []):
-                    if f.get("vcodec") != "none" and f.get("height"):
-                        formats.append({
-                            "format_id": f.get("format_id"),
-                            "resolution": f.get("format_note", f"{f.get('height')}p"),
-                            "ext": f.get("ext"),
-                            "type": "video",
-                        })
-                    elif f.get("acodec") != "none" and f.get("vcodec") == "none":
-                        formats.append({
-                            "format_id": f.get("format_id"),
-                            "resolution": "audio",
-                            "ext": f.get("ext"),
-                            "type": "audio",
-                        })
-                return {
-                    "title": info.get("title", "Unknown Title"),
-                    "thumbnail": info.get("thumbnail", ""),
-                    "duration": info.get("duration", 0),
-                    "channel": info.get("uploader", ""),
-                    "views": info.get("view_count", 0),
-                    "formats": formats,
-                    "platform": info.get("extractor_key", ""),
-                }
-        except Exception as e:
-            raw = str(e)
-            last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", raw)
-            print(f"[metadata] {label} failed: {last_error}")
-            if not any(k in last_error.lower() for k in ["sign in", "bot", "cookie", "confirm", "permission", "not available"]):
-                break
-
-    raise Exception(last_error or "Extraction failed")
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            formats = []
+            for f in info.get("formats", []):
+                if f.get("vcodec") != "none" and f.get("height"):
+                    formats.append({
+                        "format_id": f.get("format_id"),
+                        "resolution": f.get("format_note", f"{f.get('height')}p"),
+                        "ext": f.get("ext"),
+                        "type": "video",
+                    })
+                elif f.get("acodec") != "none" and f.get("vcodec") == "none":
+                    formats.append({
+                        "format_id": f.get("format_id"),
+                        "resolution": "audio",
+                        "ext": f.get("ext"),
+                        "type": "audio",
+                    })
+            return {
+                "title": info.get("title", "Unknown Title"),
+                "thumbnail": info.get("thumbnail", ""),
+                "duration": info.get("duration", 0),
+                "channel": info.get("uploader", ""),
+                "views": info.get("view_count", 0),
+                "formats": formats,
+                "platform": info.get("extractor_key", ""),
+            }
+    except Exception as e:
+        err = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", str(e))
+        raise Exception(err)
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +200,8 @@ def _progress_hook(job_id: str):
             if d["status"] == "downloading":
                 raw = d.get("_percent_str", "0%")
                 clean = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", raw)
-                redis_client.hset(f"job:{job_id}", "progress", str(float(clean.replace("%", "").strip())))
+                redis_client.hset(f"job:{job_id}", "progress",
+                                  str(float(clean.replace("%", "").strip())))
             elif d["status"] == "finished":
                 redis_client.hset(f"job:{job_id}", "progress", "99")
         except Exception:
@@ -209,17 +223,6 @@ def _find_downloaded_file(job_id: str, expected_ext: str) -> str | None:
     return None
 
 
-def _build_format_str(format_type: str, res: int) -> str:
-    if format_type == "audio":
-        return "bestaudio/best"
-    return (
-        f"bestvideo[height<={res}][ext=mp4]+bestaudio[ext=m4a]"
-        f"/bestvideo[height<={res}]+bestaudio"
-        f"/best[height<={res}]"
-        f"/best"
-    )
-
-
 # ---------------------------------------------------------------------------
 # Main download task
 # ---------------------------------------------------------------------------
@@ -227,18 +230,24 @@ def _build_format_str(format_type: str, res: int) -> str:
 def download_video_task(job_id: str, url: str, format_type: str, quality: str):
     cleanup_downloads()
 
-    # Re-init cookies in case the file was cleaned up
+    # Re-init cookies if lost after cleanup
     global _COOKIES_FILE
     if not _COOKIES_FILE or not os.path.isfile(_COOKIES_FILE):
         _COOKIES_FILE = _init_cookies()
 
     is_youtube = "youtube.com" in url or "youtu.be" in url
-    res = {"4k": 2160, "1080p": 1080, "720p": 720, "480p": 480}.get(quality.lower(), 2160)
+    res = {"4k": 2160, "1080p": 1080, "720p": 720, "480p": 480}.get(quality.lower(), 1080)
     ext = "mp3" if format_type == "audio" else "mp4"
     final_path = os.path.join(DOWNLOAD_DIR, f"{job_id}.{ext}")
+    fmt = _format_str(format_type, res)
 
-    base_dl = _base_opts({
+    print(f"[download] format_type={format_type} quality={quality} res={res}")
+    print(f"[download] format string: {fmt}")
+    print(f"[download] cookies: {'✅ ' + _COOKIES_FILE if _COOKIES_FILE else '❌ none'}")
+
+    base_opts = _base_opts({
         "quiet": False,
+        "format": fmt,
         "outtmpl": os.path.join(DOWNLOAD_DIR, f"{job_id}_raw.%(ext)s"),
         "progress_hooks": [_progress_hook(job_id)],
         "nocheckcertificate": True,
@@ -256,73 +265,63 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
         "fragment_retries": 10,
         "ignoreerrors": False,
         "postprocessors": (
-            [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]
+            [{"key": "FFmpegExtractAudio",
+              "preferredcodec": "mp3", "preferredquality": "192"}]
             if format_type == "audio" else []
         ),
     })
 
-    strategies = _youtube_strategies() if is_youtube else [{"_label": "default", "_format_override": None}]
+    opts = _yt_opts(base_opts) if is_youtube else base_opts
+
     success = False
     last_error = None
 
-    for strategy in strategies:
-        label = strategy.pop("_label", "default")
-        fmt_override = strategy.pop("_format_override", None)
-        fmt = fmt_override or _build_format_str(format_type, res)
-        opts = {**base_dl, **strategy, "format": fmt}
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            for retry in range(3):
+                try:
+                    ydl.extract_info(url, download=True)
+                    break
+                except Exception as e:
+                    if "WinError 32" in str(e) and retry < 2:
+                        time.sleep(5)
+                    else:
+                        raise
 
-        print(f"[download] {label} | fmt: {fmt[:50]} | cookies: {'✅' if _COOKIES_FILE else '❌'}")
+        time.sleep(2)
+        dl_file = _find_downloaded_file(job_id, "mp3" if format_type == "audio" else "mp4")
 
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                for retry in range(3):
+        if dl_file:
+            for _ in range(15):
+                try:
+                    if os.path.exists(final_path):
+                        os.remove(final_path)
+                    shutil.move(dl_file, final_path)
+                    success = True
+                    print(f"[download] ✅ {final_path}")
+                    break
+                except Exception:
+                    time.sleep(1)
+
+        if success:
+            for name in os.listdir(DOWNLOAD_DIR):
+                if job_id in name and name not in (f"{job_id}.{ext}", "yt_cookies.txt"):
                     try:
-                        ydl.extract_info(url, download=True)
-                        break
-                    except Exception as e:
-                        if "WinError 32" in str(e) and retry < 2:
-                            time.sleep(5)
-                        else:
-                            raise
-
-            time.sleep(2)
-            dl_file = _find_downloaded_file(job_id, "mp3" if format_type == "audio" else "mp4")
-
-            if dl_file:
-                for _ in range(15):
-                    try:
-                        if os.path.exists(final_path):
-                            os.remove(final_path)
-                        shutil.move(dl_file, final_path)
-                        success = True
-                        print(f"[download] ✅ {final_path}")
-                        break
+                        os.remove(os.path.join(DOWNLOAD_DIR, name))
                     except Exception:
-                        time.sleep(1)
+                        pass
+            redis_client.hset(f"job:{job_id}", mapping={
+                "status": "completed",
+                "progress": "100",
+                "downloadUrl": final_path,
+            })
 
-            if success:
-                for name in os.listdir(DOWNLOAD_DIR):
-                    if job_id in name and name != f"{job_id}.{ext}" and name != "yt_cookies.txt":
-                        try:
-                            os.remove(os.path.join(DOWNLOAD_DIR, name))
-                        except Exception:
-                            pass
-                redis_client.hset(f"job:{job_id}", mapping={
-                    "status": "completed", "progress": "100", "downloadUrl": final_path,
-                })
-                break
-
-        except Exception as e:
-            raw = str(e)
-            last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", raw)
-            print(f"[download] {label} failed: {last_error}")
-            # Always try next strategy for bot/format errors
-            recoverable = ["sign in", "bot", "cookie", "confirm", "permission", "not available", "requested format"]
-            if not any(k in last_error.lower() for k in recoverable):
-                break
+    except Exception as e:
+        last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", str(e))
+        print(f"[download] ❌ failed: {last_error}")
 
     if not success:
         redis_client.hset(f"job:{job_id}", mapping={
             "status": "failed",
-            "error": last_error or "Download failed after all strategies",
+            "error": last_error or "Download failed",
         })
