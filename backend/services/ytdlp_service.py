@@ -81,12 +81,18 @@ def _base_opts(extra: dict | None = None) -> dict:
     return opts
 
 
-def _yt_opts(base: dict) -> dict:
-    """Add YouTube-specific options to a base opts dict."""
+def _yt_opts(base: dict, is_youtube: bool = True) -> dict:
+    """Add YouTube-specific options to a base opts dict with client strategies."""
     opts = dict(base)
-    opts["extractor_args"] = {
-        "youtube": {"player_client": ["web"]}
-    }
+    
+    # Exhaustive strategy list
+    attempt_overrides = [
+        {},   # Default (ios + web_creator)
+        {"extractor_args": {"youtube": {"player_client": ["tv"]}}} if is_youtube else {},
+        {"extractor_args": {"youtube": {"player_client": ["android"]}}} if is_youtube else {},
+        {"extractor_args": {"youtube": {"player_client": ["web"]}}} if is_youtube else {},
+    ]
+    
     if _COOKIES_FILE and os.path.isfile(_COOKIES_FILE):
         opts["cookiefile"] = _COOKIES_FILE
     return opts
@@ -139,39 +145,56 @@ def _format_str(format_type: str, res: int) -> str:
 def extract_metadata(url: str):
     is_youtube = "youtube.com" in url or "youtu.be" in url
     base = _base_opts({"skip_download": True})
-    opts = _yt_opts(base) if is_youtube else base
 
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            formats = []
-            for f in info.get("formats", []):
-                if f.get("vcodec") != "none" and f.get("height"):
-                    formats.append({
-                        "format_id": f.get("format_id"),
-                        "resolution": f.get("format_note", f"{f.get('height')}p"),
-                        "ext": f.get("ext"),
-                        "type": "video",
-                    })
-                elif f.get("acodec") != "none" and f.get("vcodec") == "none":
-                    formats.append({
-                        "format_id": f.get("format_id"),
-                        "resolution": "audio",
-                        "ext": f.get("ext"),
-                        "type": "audio",
-                    })
-            return {
-                "title": info.get("title", "Unknown Title"),
-                "thumbnail": info.get("thumbnail", ""),
-                "duration": info.get("duration", 0),
-                "channel": info.get("uploader", ""),
-                "views": info.get("view_count", 0),
-                "formats": formats,
-                "platform": info.get("extractor_key", ""),
-            }
-    except Exception as e:
-        err = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", str(e))
-        raise Exception(err)
+    # Strategies to try in order
+    strategies = [
+        {"extractor_args": {"youtube": {"player_client": ["ios", "web_creator"]}}},
+        {"extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
+        {"extractor_args": {"youtube": {"player_client": ["android"]}}},
+        {"extractor_args": {"youtube": {"player_client": ["web"]}}},
+    ] if is_youtube else [{}]
+
+    last_error = None
+    for strategy in strategies:
+        opts = {**base, **strategy}
+        if _COOKIES_FILE and os.path.isfile(_COOKIES_FILE):
+            opts["cookiefile"] = _COOKIES_FILE
+        
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                formats = []
+                for f in info.get("formats", []):
+                    if f.get("vcodec") != "none" and f.get("height"):
+                        formats.append({
+                            "format_id": f.get("format_id"),
+                            "resolution": f.get("format_note", f"{f.get('height')}p"),
+                            "ext": f.get("ext"),
+                            "type": "video",
+                        })
+                    elif f.get("acodec") != "none" and f.get("vcodec") == "none":
+                        formats.append({
+                            "format_id": f.get("format_id"),
+                            "resolution": "audio",
+                            "ext": f.get("ext"),
+                            "type": "audio",
+                        })
+                return {
+                    "title": info.get("title", "Unknown Title"),
+                    "thumbnail": info.get("thumbnail", ""),
+                    "duration": info.get("duration", 0),
+                    "channel": info.get("uploader", ""),
+                    "views": info.get("view_count", 0),
+                    "formats": formats,
+                    "platform": info.get("extractor_key", ""),
+                }
+        except Exception as e:
+            last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", str(e))
+            print(f"[extract_metadata] strategy failed: {last_error}")
+            if "sign in" not in last_error.lower() and "bot" not in last_error.lower():
+                break # if it's not a bot error, stop trying strategies
+
+    raise Exception(last_error or "Extraction failed")
 
 
 # ---------------------------------------------------------------------------
@@ -271,54 +294,69 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
         ),
     })
 
-    opts = _yt_opts(base_opts) if is_youtube else base_opts
+    strategies = [
+        {"extractor_args": {"youtube": {"player_client": ["ios", "web_creator"]}}},
+        {"extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
+        {"extractor_args": {"youtube": {"player_client": ["android"]}}},
+        {"extractor_args": {"youtube": {"player_client": ["web"]}}},
+    ] if is_youtube else [{}]
 
     success = False
     last_error = None
 
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            for retry in range(3):
-                try:
-                    ydl.extract_info(url, download=True)
-                    break
-                except Exception as e:
-                    if "WinError 32" in str(e) and retry < 2:
-                        time.sleep(5)
-                    else:
-                        raise
+    for strategy in strategies:
+        opts = {**base_opts, **strategy}
+        if _COOKIES_FILE and os.path.isfile(_COOKIES_FILE):
+            opts["cookiefile"] = _COOKIES_FILE
 
-        time.sleep(2)
-        dl_file = _find_downloaded_file(job_id, "mp3" if format_type == "audio" else "mp4")
-
-        if dl_file:
-            for _ in range(15):
-                try:
-                    if os.path.exists(final_path):
-                        os.remove(final_path)
-                    shutil.move(dl_file, final_path)
-                    success = True
-                    print(f"[download] ✅ {final_path}")
-                    break
-                except Exception:
-                    time.sleep(1)
-
-        if success:
-            for name in os.listdir(DOWNLOAD_DIR):
-                if job_id in name and name not in (f"{job_id}.{ext}", "yt_cookies.txt"):
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                for retry in range(3):
                     try:
-                        os.remove(os.path.join(DOWNLOAD_DIR, name))
-                    except Exception:
-                        pass
-            redis_client.hset(f"job:{job_id}", mapping={
-                "status": "completed",
-                "progress": "100",
-                "downloadUrl": final_path,
-            })
+                        ydl.extract_info(url, download=True)
+                        break
+                    except Exception as e:
+                        if "WinError 32" in str(e) and retry < 2:
+                            time.sleep(5)
+                        else:
+                            raise
 
-    except Exception as e:
-        last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", str(e))
-        print(f"[download] ❌ failed: {last_error}")
+            time.sleep(2)
+            dl_file = _find_downloaded_file(job_id, "mp3" if format_type == "audio" else "mp4")
+
+            if dl_file:
+                for _ in range(15):
+                    try:
+                        if os.path.exists(final_path):
+                            os.remove(final_path)
+                        shutil.move(dl_file, final_path)
+                        success = True
+                        print(f"[download] ✅ {final_path}")
+                        break
+                    except Exception:
+                        time.sleep(1)
+
+            if success:
+                # Clean up any leftover temp / part files
+                for name in os.listdir(DOWNLOAD_DIR):
+                    if job_id in name and name != f"{job_id}.{ext}" and name != "yt_cookies.txt":
+                        try:
+                            os.remove(os.path.join(DOWNLOAD_DIR, name))
+                        except Exception:
+                            pass
+
+                redis_client.hset(f"job:{job_id}", mapping={
+                    "status": "completed",
+                    "progress": "100",
+                    "downloadUrl": final_path,
+                })
+                break # Exit strategy loop on success
+
+        except Exception as e:
+            last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", str(e))
+            print(f"[download] strategy failed: {last_error}")
+            if "sign in" not in last_error.lower() and "bot" not in last_error.lower():
+                break # Not a bot error
 
     if not success:
         redis_client.hset(f"job:{job_id}", mapping={
