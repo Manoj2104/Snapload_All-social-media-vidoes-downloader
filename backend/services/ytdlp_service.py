@@ -315,13 +315,20 @@ def progress_hook(job_id):
 
 def extract_metadata(url):
 
-    opts = get_common_opts()
-
-    # IMPORTANT
-    # avoid format validation
-    opts["extract_flat"] = True
-
     try:
+
+        opts = get_common_opts()
+
+        # IMPORTANT
+        # DO NOT validate formats
+        opts["extract_flat"] = "discard_in_playlist"
+
+        # CRITICAL FIX
+        # remove ANY format selection
+        opts.pop("format", None)
+
+        # safer extraction
+        opts["skip_download"] = True
 
         with yt_dlp.YoutubeDL(opts) as ydl:
 
@@ -330,72 +337,66 @@ def extract_metadata(url):
                 download=False
             )
 
+            title = info.get(
+                "title",
+                "Unknown"
+            )
+
+            thumbnail = info.get(
+                "thumbnail",
+                ""
+            )
+
+            duration = info.get(
+                "duration",
+                0
+            )
+
+            channel = info.get(
+                "uploader",
+                ""
+            )
+
+            views = info.get(
+                "view_count",
+                0
+            )
+
             return {
 
-                "title":
-                info.get(
-                    "title",
-                    "Unknown"
-                ),
+                "title": title,
 
-                "thumbnail":
-                info.get(
-                    "thumbnail",
-                    ""
-                ),
+                "thumbnail": thumbnail,
 
-                "duration":
-                info.get(
-                    "duration",
-                    0
-                ),
+                "duration": duration,
 
-                "channel":
-                info.get(
-                    "uploader",
-                    ""
-                ),
+                "channel": channel,
 
-                "views":
-                info.get(
-                    "view_count",
-                    0
-                ),
+                "views": views,
 
-                # STATIC SAFE FORMATS
+                # STATIC UI OPTIONS
+                # NO REAL FORMAT EXTRACTION
                 "formats": [
 
                     {
-                        "resolution":
-                        "720p",
-
-                        "ext":
-                        "mp4",
-
-                        "type":
-                        "video",
+                        "format_id": "22",
+                        "resolution": "720p",
+                        "ext": "mp4",
+                        "type": "video",
                     },
 
                     {
-                        "resolution":
-                        "360p",
-
-                        "ext":
-                        "mp4",
-
-                        "type":
-                        "video",
+                        "format_id": "18",
+                        "resolution": "360p",
+                        "ext": "mp4",
+                        "type": "video",
                     },
 
                     {
-                        "resolution":
-                        "audio",
-
-                        "ext":
-                        "mp3",
-
-                        "type":
-                        "audio",
+                        "format_id": "140",
+                        "resolution": "audio",
+                        "ext": "mp3",
+                        "type": "audio",
                     }
                 ]
             }
@@ -409,12 +410,10 @@ def extract_metadata(url):
         )
 
         print(
-            f"[metadata error] "
-            f"{err}"
+            f"[metadata error] {err}"
         )
 
         raise Exception(err)
-
 # =========================================================
 # FIND FILE
 # =========================================================
