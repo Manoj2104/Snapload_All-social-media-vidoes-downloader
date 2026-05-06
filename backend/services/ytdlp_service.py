@@ -40,8 +40,6 @@ def _youtube_opts(base: dict) -> dict:
     yt_args = {
         # tv_embedded + ios combination bypasses bot checks most reliably
         "player_client": ["tv_embedded", "ios", "android", "web_creator"],
-        # Skipping hls manifests reduces bot-trigger surface
-        "skip": ["hls", "dash"],
     }
 
     # Add PO Token support if provided
@@ -283,7 +281,6 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
                 "extractor_args": {
                     "youtube": {
                         "player_client": ["tv_embedded", "ios"],
-                        "skip": ["hls", "dash"],
                     }
                 }
             },
