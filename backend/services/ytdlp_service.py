@@ -1,7 +1,6 @@
 import yt_dlp
 import os
 import re
-import time
 import shutil
 from services.redis_service import redis_client
 
@@ -13,23 +12,34 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 # =========================================================
 
 def init_cookies():
+
     writable = os.path.join(DOWNLOAD_DIR, "cookies.txt")
 
-    env_cookie_file = os.environ.get("YT_COOKIES_FILE", "").strip()
+    env_cookie_file = os.environ.get(
+        "YT_COOKIES_FILE",
+        ""
+    ).strip()
 
     if env_cookie_file and os.path.isfile(env_cookie_file):
+
         shutil.copy2(env_cookie_file, writable)
+
         print(f"[cookies] loaded: {writable}")
+
         return writable
 
     local_cookie = "cookies.txt"
 
     if os.path.isfile(local_cookie):
+
         shutil.copy2(local_cookie, writable)
-        print(f"[cookies] local loaded")
+
+        print("[cookies] local loaded")
+
         return writable
 
     print("[cookies] no cookies found")
+
     return None
 
 
@@ -39,30 +49,37 @@ COOKIE_FILE = init_cookies()
 # OPTIONAL PROXY
 # =========================================================
 
-PROXY = os.environ.get("YT_PROXY", "").strip()
-
-# Example:
-# http://user:pass@host:port
+PROXY = os.environ.get(
+    "YT_PROXY",
+    ""
+).strip()
 
 # =========================================================
-# COMMON YTDLP OPTIONS
+# COMMON OPTIONS
 # =========================================================
 
 def get_common_opts():
 
     opts = {
+
         "quiet": False,
+
         "no_warnings": True,
 
         "nocheckcertificate": True,
+
         "ignoreerrors": False,
 
         "retries": 10,
+
         "fragment_retries": 10,
+
         "extractor_retries": 5,
 
         "sleep_interval": 2,
+
         "max_sleep_interval": 5,
+
         "sleep_interval_requests": 1,
 
         "concurrent_fragment_downloads": 1,
@@ -74,37 +91,41 @@ def get_common_opts():
         "socket_timeout": 60,
 
         "http_headers": {
+
             "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Mozilla/5.0 "
+                "(Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 "
+                "(KHTML, like Gecko) "
                 "Chrome/124.0.0.0 Safari/537.36"
             ),
 
             "Accept-Language": "en-US,en;q=0.9",
-
-            "X-YouTube-Client-Name": "1",
-            "X-YouTube-Client-Version": "2.20240201.00.00",
         },
 
         "extractor_args": {
+
             "youtube": {
+
                 "player_client": [
                     "android",
                     "web",
-                    "tv_embedded",
+                    "tv_embedded"
                 ],
 
                 "player_skip": [
-                    "configs",
-                ],
+                    "configs"
+                ]
             }
-        },
+        }
     }
 
     if COOKIE_FILE and os.path.isfile(COOKIE_FILE):
+
         opts["cookiefile"] = COOKIE_FILE
 
     if PROXY:
+
         opts["proxy"] = PROXY
 
     return opts
@@ -123,10 +144,13 @@ def cleanup_downloads():
         path = os.path.join(DOWNLOAD_DIR, name)
 
         try:
+
             if os.path.isfile(path):
+
                 os.remove(path)
 
         except Exception as e:
+
             print(f"[cleanup] {e}")
 
 # =========================================================
@@ -149,7 +173,9 @@ def progress_hook(job_id):
                     percent
                 )
 
-                value = float(clean.replace("%", "").strip())
+                value = float(
+                    clean.replace("%", "").strip()
+                )
 
                 redis_client.hset(
                     f"job:{job_id}",
@@ -186,43 +212,62 @@ def extract_metadata(url):
 
         with yt_dlp.YoutubeDL(opts) as ydl:
 
-            info = ydl.extract_info(url, download=False)
+            info = ydl.extract_info(
+                url,
+                download=False
+            )
 
             formats = []
 
             for f in info.get("formats", []):
 
-                if f.get("vcodec") != "none" and f.get("height"):
+                if (
+                    f.get("vcodec") != "none"
+                    and f.get("height")
+                ):
 
                     formats.append({
+
                         "format_id": f.get("format_id"),
+
                         "resolution": f"{f.get('height')}p",
+
                         "ext": f.get("ext"),
+
                         "type": "video",
                     })
 
             return {
+
                 "title": info.get("title"),
+
                 "thumbnail": info.get("thumbnail"),
+
                 "duration": info.get("duration"),
+
                 "channel": info.get("uploader"),
+
                 "views": info.get("view_count"),
+
                 "formats": formats,
             }
 
     except Exception as e:
 
-        err = str(e)
+        print(f"[metadata error] {e}")
 
-        print(err)
-
-        raise Exception(err)
+        raise Exception(str(e))
 
 # =========================================================
 # DOWNLOAD VIDEO
 # =========================================================
 
-def download_video_task(job_id, url, format_type, quality):
+def download_video_task(
+    job_id,
+    url,
+    format_type,
+    quality
+):
 
     cleanup_downloads()
 
@@ -233,27 +278,29 @@ def download_video_task(job_id, url, format_type, quality):
         f"{job_id}.%(ext)s"
     )
 
-    quality_map = {
-        "4k": "bestvideo[height<=2160]+bestaudio/best",
-        "1080p": "bestvideo[height<=1080]+bestaudio/best",
-        "720p": "bestvideo[height<=720]+bestaudio/best",
-        "480p": "bestvideo[height<=480]+bestaudio/best",
-    }
-
-    selected_format = quality_map.get(
-        quality.lower(),
-        "bestvideo+bestaudio/best"
-    )
+    # =====================================================
+    # SAFE FORMAT SELECTION
+    # =====================================================
 
     if format_type == "audio":
+
         fmt = "bestaudio/best"
 
     else:
+
         quality_map = {
-            "4k": "bestvideo[height<=2160]+bestaudio/best",
-            "1080p": "bestvideo[height<=1080]+bestaudio/best",
-            "720p": "bestvideo[height<=720]+bestaudio/best",
-            "480p": "bestvideo[height<=480]+bestaudio/best",
+
+            "4k":
+            "bestvideo[height<=2160]+bestaudio/best",
+
+            "1080p":
+            "bestvideo[height<=1080]+bestaudio/best",
+
+            "720p":
+            "bestvideo[height<=720]+bestaudio/best",
+
+            "480p":
+            "bestvideo[height<=480]+bestaudio/best",
         }
 
         fmt = quality_map.get(
@@ -261,11 +308,13 @@ def download_video_task(job_id, url, format_type, quality):
             "bestvideo+bestaudio/best"
         )
 
+    print(f"[download] using format: {fmt}")
+
     opts = get_common_opts()
 
     opts.update({
 
-        "format": selected_format,
+        "format": fmt,
 
         "outtmpl": output_template,
 
@@ -282,13 +331,24 @@ def download_video_task(job_id, url, format_type, quality):
         "overwrites": True,
     })
 
+    # =====================================================
+    # AUDIO POSTPROCESSING
+    # =====================================================
+
     if format_type == "audio":
 
         opts["postprocessors"] = [{
+
             "key": "FFmpegExtractAudio",
+
             "preferredcodec": "mp3",
+
             "preferredquality": "192",
         }]
+
+    # =====================================================
+    # DOWNLOAD
+    # =====================================================
 
     try:
 
@@ -302,14 +362,25 @@ def download_video_task(job_id, url, format_type, quality):
 
             if file.startswith(job_id):
 
-                if format_type == "audio" and file.endswith(".mp3"):
+                if (
+                    format_type == "audio"
+                    and file.endswith(".mp3")
+                ):
+
                     final_file = file
 
-                elif format_type != "audio" and file.endswith(".mp4"):
+                elif (
+                    format_type != "audio"
+                    and file.endswith(".mp4")
+                ):
+
                     final_file = file
 
         if not final_file:
-            raise Exception("Downloaded file not found")
+
+            raise Exception(
+                "Downloaded file not found"
+            )
 
         final_path = os.path.join(
             DOWNLOAD_DIR,
@@ -317,15 +388,22 @@ def download_video_task(job_id, url, format_type, quality):
         )
 
         redis_client.hset(
+
             f"job:{job_id}",
+
             mapping={
+
                 "status": "completed",
+
                 "progress": "100",
+
                 "downloadUrl": final_path,
             }
         )
 
-        print(f"[download completed] {final_path}")
+        print(
+            f"[download completed] {final_path}"
+        )
 
     except Exception as e:
 
@@ -334,9 +412,13 @@ def download_video_task(job_id, url, format_type, quality):
         print(f"[download error] {error}")
 
         redis_client.hset(
+
             f"job:{job_id}",
+
             mapping={
+
                 "status": "failed",
+
                 "error": error,
             }
         )
