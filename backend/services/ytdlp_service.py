@@ -1,3 +1,7 @@
+# =========================================================
+# YT-DLP SERVICE — FINAL RENDER SAFE VERSION
+# =========================================================
+
 import yt_dlp
 import os
 import re
@@ -60,8 +64,7 @@ def init_cookies():
             )
 
             print(
-                f"[cookies] copied from "
-                f"render secret: "
+                f"[cookies] copied from render secret: "
                 f"{writable_cookie}"
             )
 
@@ -95,8 +98,7 @@ def init_cookies():
                 )
 
             print(
-                "[cookies] loaded "
-                "from env content"
+                "[cookies] loaded from env content"
             )
 
             return writable_cookie
@@ -134,8 +136,7 @@ def init_cookies():
             )
 
     print(
-        "[cookies] WARNING: "
-        "no cookies found"
+        "[cookies] WARNING: no cookies found"
     )
 
     return None
@@ -187,6 +188,8 @@ def get_common_opts(
 
         "max_sleep_interval": 3,
 
+        "prefer_insecure": True,
+
         "http_headers": {
 
             "User-Agent": (
@@ -214,12 +217,11 @@ def get_common_opts(
 
             "youtube": {
 
-                # FINAL STABLE CLIENT
+                # ONLY ANDROID
                 "player_client": [
                     "android"
                 ],
 
-                # skip heavy parsing during metadata
                 "skip": (
                     ["hls", "dash"]
                     if not is_download
@@ -442,34 +444,11 @@ def extract_metadata(url):
                     0
                 ),
 
-                # STATIC UI FORMATS
                 "formats": [
 
                     {
                         "resolution":
-                        "1080p",
-
-                        "ext":
-                        "mp4",
-
-                        "type":
-                        "video",
-                    },
-
-                    {
-                        "resolution":
                         "720p",
-
-                        "ext":
-                        "mp4",
-
-                        "type":
-                        "video",
-                    },
-
-                    {
-                        "resolution":
-                        "480p",
 
                         "ext":
                         "mp4",
@@ -514,8 +493,7 @@ def extract_metadata(url):
         )
 
         print(
-            f"[metadata error] "
-            f"{err}"
+            f"[metadata error] {err}"
         )
 
         raise Exception(err)
@@ -560,7 +538,6 @@ def download_video_task(
 
     global COOKIE_FILE
 
-    # reload cookies
     if (
         not COOKIE_FILE
         or not os.path.isfile(COOKIE_FILE)
@@ -602,252 +579,194 @@ def download_video_task(
     )
 
     # =====================================================
-    # FINAL SAFE FORMAT FIX
+    # FINAL CLOUD SAFE FORMAT FIX
     # =====================================================
+
+    print(
+        f"[download request] "
+        f"type={format_type} "
+        f"quality={quality}"
+    )
 
     if format_type == "audio":
 
-        # safest audio fallback
-        fmt = "140/251/bestaudio/best"
+        # safest audio
+        fmt = "140/251/bestaudio"
 
     else:
 
-        # IMPORTANT:
-        # Use progressive streams ONLY.
-        # Avoid DASH adaptive formats on Render.
+        # ONLY PROGRESSIVE STREAMS
 
         if quality == "1080":
 
-            # most videos won't have progressive 1080
-            # fallback chain required
-            fmt = "137+140/248+251/22/18/best"
+            fmt = "22/18/best"
 
         elif quality == "720":
 
-            fmt = "22/136+140/247+251/18/best"
+            fmt = "22/18/best"
 
         elif quality == "480":
 
-            fmt = "135+140/244+251/18/best"
+            fmt = "18/best"
 
         elif quality == "360":
 
-            fmt = "18/134+140/243+251/best"
+            fmt = "18/best"
 
         else:
 
-            fmt = "22/18/best"
+            fmt = "18/best"
 
-    # =====================================================
-    # STABLE STRATEGY
-    # =====================================================
-
-    strategies = [
-
-        {
-            "extractor_args": {
-
-                "youtube": {
-
-                    "player_client": [
-                        "android"
-                    ]
-                }
-            }
-        }
-    ]
+    print(
+        f"[download] format => {fmt}"
+    )
 
     last_error = None
 
     # =====================================================
-    # TRY STRATEGIES
+    # DOWNLOAD
     # =====================================================
 
-    for strategy in strategies:
+    try:
 
-        try:
+        opts = get_common_opts(
 
-            print(
-                f"[download] Strategy: "
-                f"{strategy['extractor_args']['youtube']['player_client']}"
+            is_youtube,
+
+            is_download=True
+        )
+
+        opts.update({
+
+            "format": fmt,
+
+            "outtmpl":
+            output_template,
+
+            "progress_hooks": [
+
+                progress_hook(job_id)
+            ],
+
+            "nopart": True,
+
+            "continuedl": True,
+
+            "overwrites": True,
+
+            "noplaylist": True,
+
+            "extract_flat": False,
+
+            "merge_output_format": (
+
+                "mp4"
+
+                if format_type != "audio"
+
+                else None
+            ),
+        })
+
+        # =================================================
+        # AUDIO POST PROCESS
+        # =================================================
+
+        if format_type == "audio":
+
+            opts["postprocessors"] = [{
+
+                "key":
+                "FFmpegExtractAudio",
+
+                "preferredcodec":
+                "mp3",
+
+                "preferredquality":
+                "192",
+            }]
+
+        # =================================================
+        # DOWNLOAD
+        # =================================================
+
+        with yt_dlp.YoutubeDL(opts) as ydl:
+
+            ydl.download([url])
+
+        # =================================================
+        # FIND FILE
+        # =================================================
+
+        final_file = find_downloaded_file(
+
+            job_id,
+
+            ".mp3"
+
+            if format_type == "audio"
+
+            else ".mp4"
+        )
+
+        if not final_file:
+
+            raise Exception(
+                "Downloaded file not found"
             )
 
-            opts = get_common_opts(
+        # =================================================
+        # SUCCESS
+        # =================================================
 
-                is_youtube,
+        redis_client.hset(
 
-                is_download=True
-            )
+            f"job:{job_id}",
 
-            opts.update(strategy)
+            mapping={
 
-            opts.update({
+                "status":
+                "completed",
 
-                # =========================================
-                # FORMAT
-                # =========================================
+                "progress":
+                "100",
 
-                "format": fmt,
+                "downloadUrl":
+                final_file,
+            }
+        )
 
-                # =========================================
-                # OUTPUT
-                # =========================================
+        print(
+            f"[download completed] "
+            f"{final_file}"
+        )
 
-                "outtmpl":
-                output_template,
+    except Exception as e:
 
-                # =========================================
-                # PROGRESS
-                # =========================================
+        err = re.sub(
 
-                "progress_hooks": [
+            r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
 
-                    progress_hook(job_id)
-                ],
+            "",
 
-                # =========================================
-                # DOWNLOAD SETTINGS
-                # =========================================
+            str(e)
+        )
 
-                "nopart": True,
+        print(
+            f"[download failed] "
+            f"{err}"
+        )
 
-                "continuedl": True,
+        redis_client.hset(
 
-                "overwrites": True,
+            f"job:{job_id}",
 
-                "noplaylist": True,
+            mapping={
 
-                "extract_flat": False,
+                "status":
+                "failed",
 
-                
-                # =========================================
-                # FINAL FORMAT
-                # =========================================
-
-                "merge_output_format": (
-
-                    "mp4"
-
-                    if format_type != "audio"
-
-                    else None
-                ),
-            })
-
-            # =============================================
-            # AUDIO POST PROCESS
-            # =============================================
-
-            if format_type == "audio":
-
-                opts["postprocessors"] = [{
-
-                    "key":
-                    "FFmpegExtractAudio",
-
-                    "preferredcodec":
-                    "mp3",
-
-                    "preferredquality":
-                    "192",
-                }]
-
-            # =============================================
-            # DOWNLOAD
-            # =============================================
-
-            with yt_dlp.YoutubeDL(opts) as ydl:
-
-                ydl.download([url])
-
-            # =============================================
-            # FIND FILE
-            # =============================================
-
-            final_file = find_downloaded_file(
-
-                job_id,
-
-                ".mp3"
-
-                if format_type == "audio"
-
-                else ".mp4"
-            )
-
-            if not final_file:
-
-                raise Exception(
-                    "Downloaded file not found"
-                )
-
-            # =============================================
-            # SUCCESS
-            # =============================================
-
-            redis_client.hset(
-
-                f"job:{job_id}",
-
-                mapping={
-
-                    "status":
-                    "completed",
-
-                    "progress":
-                    "100",
-
-                    "downloadUrl":
-                    final_file,
-                }
-            )
-
-            print(
-                f"[download completed] "
-                f"{final_file}"
-            )
-
-            return
-
-        except Exception as e:
-
-            err = re.sub(
-
-                r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
-
-                "",
-
-                str(e)
-            )
-
-            print(
-                f"[download strategy failed] "
-                f"{err}"
-            )
-
-            last_error = err
-
-            time.sleep(1)
-
-    # =====================================================
-    # FAILED
-    # =====================================================
-
-    redis_client.hset(
-
-        f"job:{job_id}",
-
-        mapping={
-
-            "status":
-            "failed",
-
-            "error":
-            last_error or "Download failed",
-        }
-    )
-
-    print(
-        f"[download failed] "
-        f"{last_error}"
-    )
+                "error":
+                err,
+            }
+        )
