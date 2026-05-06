@@ -2,7 +2,6 @@ import yt_dlp
 import os
 import re
 import shutil
-import time
 from services.redis_service import redis_client
 
 # =========================================================
@@ -161,8 +160,6 @@ def get_common_opts():
 
         "max_sleep_interval": 3,
 
-        "concurrent_fragment_downloads": 4,
-
         "http_headers": {
 
             "User-Agent": (
@@ -178,9 +175,7 @@ def get_common_opts():
             "en-US,en;q=0.9",
         },
 
-        # IMPORTANT
-        # ONLY web client
-        # stable on render
+        # ONLY WEB CLIENT
         "extractor_args": {
 
             "youtube": {
@@ -295,7 +290,9 @@ def extract_metadata(url):
 
     opts = get_common_opts()
 
-    opts["skip_download"] = True
+    # IMPORTANT
+    # Avoid format validation
+    opts["extract_flat"] = True
 
     try:
 
@@ -306,34 +303,57 @@ def extract_metadata(url):
                 download=False
             )
 
-            formats = []
-
-            for f in info.get("formats", []):
-
-                if (
-                    f.get("vcodec") != "none"
-                    and f.get("height")
-                ):
-
-                    formats.append({
-                        "format_id": f.get("format_id"),
-                        "resolution": f"{f.get('height')}p",
-                        "ext": f.get("ext"),
-                        "type": "video",
-                    })
-
             return {
-                "title": info.get("title"),
-                "thumbnail": info.get("thumbnail"),
-                "duration": info.get("duration"),
-                "channel": info.get("uploader"),
-                "views": info.get("view_count"),
-                "formats": formats,
+
+                "title":
+                info.get("title", "Unknown"),
+
+                "thumbnail":
+                info.get("thumbnail", ""),
+
+                "duration":
+                info.get("duration", 0),
+
+                "channel":
+                info.get("uploader", ""),
+
+                "views":
+                info.get("view_count", 0),
+
+                # STATIC SAFE FORMATS
+                "formats": [
+
+                    {
+                        "resolution": "720p",
+                        "ext": "mp4",
+                        "type": "video",
+                    },
+
+                    {
+                        "resolution": "360p",
+                        "ext": "mp4",
+                        "type": "video",
+                    },
+
+                    {
+                        "resolution": "audio",
+                        "ext": "mp3",
+                        "type": "audio",
+                    }
+                ]
             }
 
     except Exception as e:
 
-        raise Exception(str(e))
+        err = re.sub(
+            r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
+            "",
+            str(e)
+        )
+
+        print(f"[metadata error] {err}")
+
+        raise Exception(err)
 
 # =========================================================
 # FIND FILE
@@ -396,17 +416,17 @@ def download_video_task(
     # SAFE FORMAT
     # =====================================================
 
-    # IMPORTANT:
-    # do NOT use complicated
-    # format selectors now
-
     if format_type == "audio":
 
-        fmt = "140/251/bestaudio/best"
+        # direct audio format
+        fmt = "140/251/bestaudio"
 
     else:
 
-        fmt = "best"
+        # SAFE merged formats only
+        # 18 = 360p mp4
+        # 22 = 720p mp4
+        fmt = "22/18/best"
 
     print(f"[download] format: {fmt}")
 
@@ -422,8 +442,6 @@ def download_video_task(
         "format": fmt,
 
         "outtmpl": output_template,
-
-        "merge_output_format": "mp4",
 
         "progress_hooks": [
             progress_hook(job_id)
