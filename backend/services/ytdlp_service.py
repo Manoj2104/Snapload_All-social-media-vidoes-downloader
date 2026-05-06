@@ -317,18 +317,27 @@ def extract_metadata(url):
 
     try:
 
-        opts = get_common_opts()
+        # MINIMAL SAFE OPTIONS
+        opts = {
 
-        # IMPORTANT
-        # DO NOT validate formats
-        opts["extract_flat"] = "discard_in_playlist"
+            "quiet": True,
 
-        # CRITICAL FIX
-        # remove ANY format selection
-        opts.pop("format", None)
+            "skip_download": True,
 
-        # safer extraction
-        opts["skip_download"] = True
+            "extract_flat": True,
+
+            "nocheckcertificate": True,
+
+            "ignoreerrors": False,
+        }
+
+        # ONLY cookies
+        if (
+            COOKIE_FILE
+            and os.path.isfile(COOKIE_FILE)
+        ):
+
+            opts["cookiefile"] = COOKIE_FILE
 
         with yt_dlp.YoutubeDL(opts) as ydl:
 
@@ -337,45 +346,39 @@ def extract_metadata(url):
                 download=False
             )
 
-            title = info.get(
-                "title",
-                "Unknown"
-            )
-
-            thumbnail = info.get(
-                "thumbnail",
-                ""
-            )
-
-            duration = info.get(
-                "duration",
-                0
-            )
-
-            channel = info.get(
-                "uploader",
-                ""
-            )
-
-            views = info.get(
-                "view_count",
-                0
-            )
-
             return {
 
-                "title": title,
+                "title":
+                info.get(
+                    "title",
+                    "Unknown"
+                ),
 
-                "thumbnail": thumbnail,
+                "thumbnail":
+                info.get(
+                    "thumbnail",
+                    ""
+                ),
 
-                "duration": duration,
+                "duration":
+                info.get(
+                    "duration",
+                    0
+                ),
 
-                "channel": channel,
+                "channel":
+                info.get(
+                    "uploader",
+                    ""
+                ),
 
-                "views": views,
+                "views":
+                info.get(
+                    "view_count",
+                    0
+                ),
 
                 # STATIC UI OPTIONS
-                # NO REAL FORMAT EXTRACTION
                 "formats": [
 
                     {
@@ -403,17 +406,15 @@ def extract_metadata(url):
 
     except Exception as e:
 
-        err = re.sub(
-            r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
-            "",
-            str(e)
-        )
+        err = str(e)
 
         print(
-            f"[metadata error] {err}"
+            f"[metadata error] "
+            f"{err}"
         )
 
         raise Exception(err)
+        
 # =========================================================
 # FIND FILE
 # =========================================================
