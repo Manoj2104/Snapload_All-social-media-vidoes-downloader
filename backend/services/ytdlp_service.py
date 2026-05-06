@@ -34,9 +34,13 @@ def _init_cookies() -> str | None:
     content = os.environ.get("YT_COOKIES_CONTENT", "").strip()
     if content:
         try:
+            # Ensure the Netscape header is present
+            if not content.startswith("# Netscape"):
+                content = "# Netscape HTTP Cookie File\n" + content
+            
             with open(writable, "w", encoding="utf-8") as f:
                 f.write(content)
-            print(f"[cookies] ✅ Written from env var ({os.path.getsize(writable)} bytes)")
+            print(f"[cookies] ✅ Written to {writable} ({os.path.getsize(writable)} bytes)")
             return writable
         except Exception as e:
             print(f"[cookies] ❌ Write failed: {e}")
