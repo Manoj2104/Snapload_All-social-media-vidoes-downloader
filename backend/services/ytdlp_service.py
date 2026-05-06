@@ -313,125 +313,83 @@ def find_downloaded_file(job_id, extension):
 #   yt-dlp tries each option left-to-right and picks the
 #   first that actually exists. Never hard-fails on formats.
 # =========================================================
-
 def download_video_task(
     job_id,
     url,
     format_type,
     quality
 ):
-
     cleanup_downloads()
-
     global COOKIE_FILE
 
     # reload cookies if missing
     if not COOKIE_FILE or not os.path.isfile(COOKIE_FILE):
         COOKIE_FILE = init_cookies()
 
-    output_template = os.path.join(
-        DOWNLOAD_DIR,
-        f"{job_id}.%(ext)s"
-    )
+    output_template = os.path.join(DOWNLOAD_DIR, f"{job_id}.%(ext)s")
+    res_val = {"4k": 2160, "1080p": 1080, "720p": 720, "480p": 480}.get(quality.lower(), 720)
 
-    # --------------------------------------------------
-    # RESILIENT FORMAT STRINGS
-    # --------------------------------------------------
-
+    # 1. Choose Format String
     if format_type == "audio":
-        # Universal audio selector: m4a/mp3/best
         fmt = "bestaudio[ext=m4a]/bestaudio/best"
-
-    elif quality == "720p":
-
-        # Merged streams (best quality) → progressive mp4
-        # → anything ≤720p → absolute best available
-        fmt = (
-            "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]"
-            "/bestvideo[height<=720]+bestaudio"
-            "/best[height<=720]"
-            "/best"
-        )
-
+    elif quality in ["4k", "2160p", "1080p", "720p"]:
+        fmt = f"bestvideo[height<={res_val}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={res_val}]+bestaudio/bestvideo+bestaudio/best"
     else:
+        fmt = f"bestvideo[height<={res_val}]+bestaudio/best[height<={res_val}]/best"
 
-        # 360p cascade — same pattern at lower resolution cap
-        fmt = (
-            "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]"
-            "/bestvideo[height<=360]+bestaudio"
-            "/best[height<=360]"
-            "/best"
-        )
-
-    print(f"[download] format: {fmt}")
-    print(f"[download] cookies: {COOKIE_FILE or 'NONE'}")
-
+    # 2. Strategy Loop for Download
+    # web_creator/ios combination is best for high resolution + stability
     is_youtube = "youtube.com" in url or "youtu.be" in url
-    opts = get_common_opts(is_youtube, is_download=True)
+    strategies = [
+        {"extractor_args": {"youtube": {"player_client": ["web_creator", "ios"]}}},
+        {"extractor_args": {"youtube": {"player_client": ["tv_embedded"]}}},
+        {"extractor_args": {"youtube": {"player_client": ["android"]}}},
+    ] if is_youtube else [{}]
 
-    opts.update({
-        "format":              fmt,
-        "outtmpl":             output_template,
-        "progress_hooks":      [progress_hook(job_id)],
-        "nopart":              True,
-        "continuedl":          True,
-        "overwrites":          True,
-        # Required when yt-dlp merges separate
-        # video + audio streams into a single file
-        "merge_output_format": "mp4",
-    })
+    success = False
+    last_error = None
 
-    # --------------------------------------------------
-    # AUDIO POSTPROCESS
-    # --------------------------------------------------
+    for strategy in strategies:
+        opts = get_common_opts(is_youtube, is_download=True)
+        opts.update(strategy)
+        opts.update({
+            "format":              fmt,
+            "outtmpl":             output_template,
+            "progress_hooks":      [progress_hook(job_id)],
+            "nopart":              True,
+            "continuedl":          True,
+            "overwrites":          True,
+            "merge_output_format": "mp4" if format_type != "audio" else None,
+        })
 
-    if format_type == "audio":
-        opts["postprocessors"] = [{
-            "key":              "FFmpegExtractAudio",
-            "preferredcodec":   "mp3",
-            "preferredquality": "192",
-        }]
+        if format_type == "audio":
+            opts["postprocessors"] = [{
+                "key":              "FFmpegExtractAudio",
+                "preferredcodec":   "mp3",
+                "preferredquality": "192",
+            }]
 
-    # --------------------------------------------------
-    # DOWNLOAD
-    # --------------------------------------------------
+        try:
+            print(f"[download] Strategy: {strategy.get('extractor_args', {}).get('youtube', {}).get('player_client', 'default')}")
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.download([url])
+            
+            # Verify file exists
+            ext_final = "mp3" if format_type == "audio" else "mp4"
+            if find_downloaded_file(job_id, f".{ext_final}"):
+                success = True
+                break
+        except Exception as e:
+            last_error = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", str(e))
+            print(f"[download strategy failed] {last_error}")
+            if "not a valid URL" in last_error: break
 
-    try:
-
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([url])
-
-        ext        = "mp3" if format_type == "audio" else "mp4"
-        final_file = find_downloaded_file(job_id, f".{ext}")
-
-        if not final_file:
-            raise Exception("Downloaded file not found")
-
-        redis_client.hset(
-            f"job:{job_id}",
-            mapping={
-                "status":      "completed",
-                "progress":    "100",
-                "downloadUrl": final_file,
-            }
-        )
-
+    # 3. Update Status
+    if success:
+        ext_final = "mp3" if format_type == "audio" else "mp4"
+        final_file = find_downloaded_file(job_id, f".{ext_final}")
+        redis_client.hset(f"job:{job_id}", mapping={"status": "completed", "progress": "100", "downloadUrl": final_file})
         print(f"[download completed] {final_file}")
-
-    except Exception as e:
-
-        err = re.sub(
-            r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
-            "",
-            str(e)
-        )
-
-        print(f"[download error] {err}")
-
-        redis_client.hset(
-            f"job:{job_id}",
-            mapping={
-                "status": "failed",
-                "error":  err,
-            }
-        )
+    else:
+        redis_client.hset(f"job:{job_id}", mapping={"status": "failed", "error": last_error or "Download failed"})
+       )
