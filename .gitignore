@@ -8,13 +8,17 @@ __pycache__/
 # Next.js Build
 .next/
 
-# Downloads & Temp
-backend/downloads/
-backend/temp_cookies/
-job_storage.json
+# Cookies and secrets
+backend/cookies.txt
+backend/cookies copy.txt
+.env
+YT_COOKIES_CONTENT
+
+# Downloads
+backend/downloads/*
+!backend/downloads/.gitkeep
 
 # Environment
-.env
 .env.local
 .env.development.local
 .env.test.local

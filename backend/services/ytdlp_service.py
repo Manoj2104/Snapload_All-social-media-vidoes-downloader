@@ -11,27 +11,51 @@ DOWNLOAD_DIR = os.path.abspath("downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# Cookies file path – export from a logged-in Chrome/Firefox session using
-# the "Get cookies.txt LOCALLY" browser extension, then place the file here.
-# This is the single most effective fix for YouTube bot detection.
+# Authentication & Bot Bypass
 # ---------------------------------------------------------------------------
+# 1. Cookies: Handle file path or raw content from environment
 COOKIES_FILE = os.environ.get("YT_COOKIES_FILE", "cookies.txt")
+COOKIES_CONTENT = os.environ.get("YT_COOKIES_CONTENT")
+
+# If raw cookie content is provided via env var, write it to the file at runtime
+if COOKIES_CONTENT and not os.path.exists(COOKIES_FILE):
+    try:
+        with open(COOKIES_FILE, "w", encoding="utf-8") as f:
+            f.write(COOKIES_CONTENT)
+        print(f"[setup] Created {COOKIES_FILE} from YT_COOKIES_CONTENT")
+    except Exception as e:
+        print(f"[setup] Failed to write cookies file: {e}")
+
+# 2. PO Token: The modern way to bypass bot checks.
+# Set these in your environment (e.g., Render Dashboard)
+PO_TOKEN = os.environ.get("YT_PO_TOKEN")
+VISITOR_DATA = os.environ.get("YT_VISITOR_DATA")
 
 
 def _youtube_opts(base: dict) -> dict:
     """Merge YouTube-specific extractor args into an opts dict."""
     opts = dict(base)
-    opts["extractor_args"] = {
-        "youtube": {
-            # tv_embedded + ios combination bypasses bot checks most reliably
-            "player_client": ["tv_embedded", "ios", "android", "web_creator"],
-            # Skipping hls manifests reduces bot-trigger surface
-            "skip": ["hls", "dash"],
-        }
+    
+    # Core YouTube Extractor Args
+    yt_args = {
+        # tv_embedded + ios combination bypasses bot checks most reliably
+        "player_client": ["tv_embedded", "ios", "android", "web_creator"],
+        # Skipping hls manifests reduces bot-trigger surface
+        "skip": ["hls", "dash"],
     }
+
+    # Add PO Token support if provided
+    if PO_TOKEN:
+        yt_args["po_token"] = [f"web+{PO_TOKEN}", f"ios+{PO_TOKEN}"]
+    if VISITOR_DATA:
+        yt_args["visitor_data"] = VISITOR_DATA
+
+    opts["extractor_args"] = {"youtube": yt_args}
+    
     # Attach cookies only when the file actually exists
     if os.path.isfile(COOKIES_FILE):
         opts["cookiefile"] = COOKIES_FILE
+        
     return opts
 
 
@@ -73,11 +97,13 @@ def extract_metadata(url: str):
 
     base = _base_opts({"skip_download": True})
 
-    # We try two strategies:
-    #   1. tv_embedded + ios clients (most stealthy)
-    #   2. web client with cookies only (fallback)
+    # We try three strategies:
+    #   1. tv_embedded + ios (stealthiest)
+    #   2. android + web_creator
+    #   3. web client (requires cookies/PO token)
     attempt_overrides = [
-        {},   # uses _youtube_opts if is_youtube
+        {},   # Default (uses _youtube_opts)
+        {"extractor_args": {"youtube": {"player_client": ["android", "web_creator"]}}} if is_youtube else {},
         {"extractor_args": {"youtube": {"player_client": ["web"]}}} if is_youtube else {},
     ]
 
