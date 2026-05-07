@@ -27,3 +27,7 @@ backend/downloads/*
 # OS files
 .DS_Store
 Thumbs.db
+cookies.txt
+backend/slim_cookies.txt
+backend/job_storage.json
+job_storage.json
