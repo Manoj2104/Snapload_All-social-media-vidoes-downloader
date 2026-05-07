@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Download, Menu, X, User as UserIcon, LogOut, CreditCard, Play, Shield, Zap } from 'lucide-react';
+import { Download, Menu, X, User as UserIcon, LogOut, CreditCard, Play, Shield, Zap, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import AuthModals from '@/components/auth/AuthModals';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -48,17 +48,20 @@ export default function Navbar() {
             
             {user ? (
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
-                  <CreditCard size={14} className="text-blue-600" />
+                <Link href="/wallet" className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 hover:bg-blue-100 transition-all group">
+                  <CreditCard size={14} className="text-blue-600 group-hover:scale-110 transition-transform" />
                   <span className="text-xs font-black text-blue-700 uppercase tracking-tight">{user.credits} CR</span>
-                </div>
+                </Link>
                 <div className="relative group">
                   <button className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 hover:bg-blue-100 hover:text-blue-600 transition-all">
                     <UserIcon size={20} />
                   </button>
                   <div className="absolute right-0 top-12 w-48 bg-white rounded-2xl shadow-2xl border border-blue-50 p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                    <Link href="/wallet" className="flex items-center gap-2 p-3 hover:bg-slate-50 rounded-xl text-sm font-bold text-slate-600 transition-colors">
+                      <Wallet size={16} className="text-blue-600" /> Wallet Hub
+                    </Link>
                     <Link href="/settings" className="flex items-center gap-2 p-3 hover:bg-slate-50 rounded-xl text-sm font-bold text-slate-600 transition-colors">
-                      <UserIcon size={16} /> Profile Settings
+                      <Shield size={16} className="text-amber-600" /> Settings
                     </Link>
                     <button onClick={logout} className="w-full flex items-center gap-2 p-3 hover:bg-red-50 rounded-xl text-sm font-bold text-red-500 transition-colors mt-1">
                       <LogOut size={16} /> Logout

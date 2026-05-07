@@ -42,6 +42,8 @@ export default function HeroDownloader() {
     return () => clearInterval(timer);
   }, []);
 
+  const [quickExtract, setQuickExtract] = useState(false);
+
   const analyze = async () => {
     if (!url.trim()) return;
     setPhase('analyzing');
@@ -58,14 +60,26 @@ export default function HeroDownloader() {
       }
       const data = await res.json();
       setMetadata(data);
-      setErrorMsg(''); // Clear any old errors from previous failed attempts
-      setPhase('ready');
-      setShowModal(true);
+      setErrorMsg('');
+      
+      if (quickExtract) {
+        setPhase('ready');
+        // We'll trigger startDownload in a useEffect when metadata is set and phase is ready
+      } else {
+        setPhase('ready');
+        setShowModal(true);
+      }
     } catch (err: any) {
       setErrorMsg(err.message);
       setPhase('error');
     }
   };
+
+  useEffect(() => {
+    if (quickExtract && phase === 'ready' && metadata) {
+      startDownload();
+    }
+  }, [phase, metadata, quickExtract]);
 
   const handlePaste = async () => {
     try {
@@ -444,6 +458,30 @@ export default function HeroDownloader() {
                 Analyze
               </motion.button>
             </div>
+            
+            <div className="mt-8 flex items-center justify-center gap-6">
+               <button 
+                 onClick={() => setQuickExtract(!quickExtract)}
+                 className="flex items-center gap-3 group cursor-pointer"
+               >
+                 <div className={`w-12 h-6 rounded-full transition-all duration-500 relative ${quickExtract ? 'bg-blue-600 shadow-lg shadow-blue-200' : 'bg-slate-100'}`}>
+                    <motion.div 
+                      animate={{ x: quickExtract ? 24 : 2 }}
+                      className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                    />
+                 </div>
+                 <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${quickExtract ? 'text-blue-600' : 'text-slate-400'}`}>
+                    Quick Extract (Turbo)
+                 </span>
+               </button>
+               
+               <div className="w-px h-4 bg-slate-100" />
+               
+               <div className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                  <Shield size={12} /> Encrypted
+               </div>
+            </div>
+
             {phase === 'error' && (
               <div className="mt-4 flex items-center gap-2 text-red-500 text-xs font-bold justify-center">
                 <AlertCircle size={14} /> {errorMsg}
