@@ -526,21 +526,57 @@ export default function HeroDownloader() {
 
                 {(phase === 'ready' || phase === 'error') && (
                   <div className="space-y-3 md:space-y-4">
-                    <div className="grid grid-cols-3 gap-2">
-                      {QUALITIES.map(q => {
-                        const isPremium = q === '1080p' || q === '4K';
-                        const isDisabled = isPremium && !user;
-                        return (
-                          <button 
-                            key={q} 
-                            onClick={() => !isDisabled && setQuality(q)} 
-                            className={`relative py-2 md:py-3 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${quality === q ? 'bg-blue-700 text-white shadow-lg shadow-blue-200' : 'bg-white border border-slate-100 text-slate-400 hover:bg-blue-50 hover:text-blue-700'} ${isDisabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
-                          >
-                            {q}
-                            {isDisabled && <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[6px] px-1 rounded-full px-1.5 py-0.5">VIP</span>}
-                          </button>
-                        );
-                      })}
+                    <div className="space-y-4">
+                      {/* VIP Tiers */}
+                      <div className="grid grid-cols-2 gap-3">
+                        {['4K', '1080p'].map(q => {
+                          const isDisabled = !user;
+                          const isActive = quality === q;
+                          return (
+                            <button 
+                              key={q} 
+                              onClick={() => !isDisabled && setQuality(q as Quality)} 
+                              className={`relative p-5 rounded-2xl border-2 transition-all duration-500 flex flex-col items-center justify-center gap-1 group overflow-hidden ${isActive ? 'border-blue-600 bg-blue-50/50 shadow-xl shadow-blue-100' : 'border-slate-50 bg-white hover:border-blue-200'} ${isDisabled ? 'opacity-80 grayscale-[0.5]' : ''}`}
+                            >
+                              <div className={`absolute top-0 right-0 px-3 py-1 bg-gradient-to-r from-amber-400 to-amber-600 text-white text-[8px] font-black uppercase tracking-widest rounded-bl-xl shadow-lg transition-transform ${isActive ? 'scale-110' : 'scale-100'}`}>
+                                VIP Tier
+                              </div>
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-1 transition-colors ${isActive ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-400 group-hover:text-blue-600'}`}>
+                                <Video size={20} strokeWidth={2.5} />
+                              </div>
+                              <span className={`text-sm font-black tracking-tighter ${isActive ? 'text-blue-900' : 'text-slate-400 group-hover:text-slate-900'}`}>{q}</span>
+                              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Ultra HD</span>
+                              
+                              {isDisabled && (
+                                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Link href="/pricing" className="bg-amber-500 text-white text-[8px] font-black px-3 py-1.5 rounded-full shadow-lg">UNLOCK</Link>
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Standard Tiers */}
+                      <div className="grid grid-cols-3 gap-3">
+                        {['720p', '480p', 'MP3'].map(q => {
+                          const isActive = quality === q;
+                          const isAudio = q === 'MP3';
+                          return (
+                            <button 
+                              key={q} 
+                              onClick={() => setQuality(q as Quality)} 
+                              className={`relative p-4 rounded-2xl border-2 transition-all duration-500 flex flex-col items-center justify-center gap-1 group ${isActive ? 'border-blue-600 bg-blue-50/50 shadow-lg shadow-blue-50' : 'border-slate-50 bg-white hover:border-blue-200'}`}
+                            >
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-1 transition-colors ${isActive ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-400 group-hover:text-blue-600'}`}>
+                                {isAudio ? <Music size={16} strokeWidth={2.5} /> : <Video size={16} strokeWidth={2.5} />}
+                              </div>
+                              <span className={`text-xs font-black tracking-tighter ${isActive ? 'text-blue-900' : 'text-slate-400 group-hover:text-slate-900'}`}>{q}</span>
+                              <span className="text-[7px] font-bold text-slate-300 uppercase tracking-widest">{isAudio ? 'Audio Only' : 'Standard'}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                     
                     <button 
