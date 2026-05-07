@@ -2,16 +2,21 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from routes import analyze, download, status
+from routes import analyze, download, status, auth
 from services.file_service import start_cleanup_task
 import os
+import models
+from database import engine, Base
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="SnapLoad API")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False,
+    allow_credentials=True, # Allowed for auth
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -24,6 +29,7 @@ async def startup_event():
 app.include_router(analyze.router, prefix="/api")
 app.include_router(download.router, prefix="/api")
 app.include_router(status.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 
 # Serve frontend static files
 # We mount static directory if it exists (for Docker deployment)

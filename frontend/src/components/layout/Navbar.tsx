@@ -1,17 +1,29 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Download, Menu, X } from 'lucide-react';
+import { Download, Menu, X, User as UserIcon, LogOut, CreditCard } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import AuthModals from '@/components/auth/AuthModals';
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', fn, { passive: true });
     return () => window.removeEventListener('scroll', fn);
   }, []);
+
+  const openAuth = (mode: 'login' | 'signup') => {
+    setAuthMode(mode);
+    setAuthOpen(true);
+    setOpen(false);
+  };
 
   return (
     <>
@@ -25,16 +37,42 @@ export default function Navbar() {
             <span className="text-blue-600">Load</span>
           </Link>
           
-          <div className="hidden md:flex items-center gap-10">
-            {['Features','Platforms','FAQ','About'].map(l => (
-              <Link key={l} href={l === 'About' ? '/about' : l === 'FAQ' ? '/faq' : `#${l.toLowerCase()}`}
+          <div className="hidden md:flex items-center gap-8">
+            {['Pricing', 'FAQ', 'About'].map(l => (
+              <Link key={l} href={l === 'About' ? '/about' : l === 'FAQ' ? '/faq' : '/pricing'}
                 className="text-slate-400 hover:text-blue-700 text-sm font-bold transition-all hover:-translate-y-0.5 tracking-tight">
                 {l}
               </Link>
             ))}
-            <Link href="#hero-input" className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-black px-7 py-3 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-blue-200">
-              Try Free
-            </Link>
+            
+            {user ? (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
+                  <CreditCard size={14} className="text-blue-600" />
+                  <span className="text-xs font-black text-blue-700 uppercase tracking-tight">{user.credits} CR</span>
+                </div>
+                <div className="relative group">
+                  <button className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 hover:bg-blue-100 hover:text-blue-600 transition-all">
+                    <UserIcon size={20} />
+                  </button>
+                  <div className="absolute right-0 top-12 w-48 bg-white rounded-2xl shadow-2xl border border-blue-50 p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                    <Link href="/settings" className="flex items-center gap-2 p-3 hover:bg-slate-50 rounded-xl text-sm font-bold text-slate-600 transition-colors">
+                      <UserIcon size={16} /> Profile Settings
+                    </Link>
+                    <button onClick={logout} className="w-full flex items-center gap-2 p-3 hover:bg-red-50 rounded-xl text-sm font-bold text-red-500 transition-colors mt-1">
+                      <LogOut size={16} /> Logout
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <button onClick={() => openAuth('login')} className="text-blue-950 text-sm font-bold hover:text-blue-700 transition-colors">Login</button>
+                <button onClick={() => openAuth('signup')} className="bg-blue-700 hover:bg-blue-800 text-white text-sm font-black px-7 py-3 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-blue-200">
+                  Sign Up
+                </button>
+              </div>
+            )}
           </div>
           
           <button className="md:hidden p-2 text-slate-900" onClick={() => setOpen(v => !v)}>
@@ -44,15 +82,25 @@ export default function Navbar() {
       </nav>
       {open && (
         <div className="fixed inset-0 z-40 bg-white pt-24 flex flex-col items-center">
-          {['Features','Platforms','FAQ','About'].map(l => (
-            <Link key={l} href={l === 'About' ? '/about' : `#${l.toLowerCase()}`}
+          {['Pricing', 'FAQ', 'About'].map(l => (
+            <Link key={l} href={l === 'About' ? '/about' : l === 'FAQ' ? '/faq' : '/pricing'}
               onClick={() => setOpen(false)}
               className="px-8 py-6 text-3xl font-black border-b border-slate-100 text-slate-900 w-full text-center">
               {l}
             </Link>
           ))}
+          {!user && (
+            <div className="w-full px-10 mt-10 space-y-4">
+              <button onClick={() => openAuth('login')} className="w-full py-5 text-2xl font-black text-blue-700 border-2 border-blue-700 rounded-2xl">Login</button>
+              <button onClick={() => openAuth('signup')} className="w-full py-5 text-2xl font-black text-white bg-blue-700 rounded-2xl">Sign Up</button>
+            </div>
+          )}
+          {user && (
+             <Link href="/settings" onClick={() => setOpen(false)} className="px-8 py-6 text-3xl font-black border-b border-slate-100 text-slate-900 w-full text-center">Profile</Link>
+          )}
         </div>
       )}
+      <AuthModals isOpen={authOpen} onClose={() => setAuthOpen(false)} initialMode={authMode} />
     </>
   );
 }

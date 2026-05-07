@@ -18,12 +18,16 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+import { AuthProvider } from '@/context/AuthContext';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className={inter.className}>
-        <ScrollRevealInit />
-        {children}
+        <AuthProvider>
+          <ScrollRevealInit />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
