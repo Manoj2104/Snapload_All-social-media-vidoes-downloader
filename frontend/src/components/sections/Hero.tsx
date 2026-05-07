@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { motion, useAnimation, AnimatePresence } from 'framer-motion';
-import { Search, Download, MousePointer2, Shield, Zap, CheckCircle, Loader2, X, Play, Video, Music, AlertCircle, ClipboardPaste } from 'lucide-react';
+import { Search, Download, MousePointer2, Shield, Zap, CheckCircle, Loader2, X, Play, Video, Music, AlertCircle, ClipboardPaste, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 const WORDS = ['YouTube','Instagram','TikTok','Twitter','Facebook','Vimeo'];
@@ -468,7 +468,19 @@ export default function HeroDownloader() {
                     </div>
                     <div>
                       <h3 className="text-xs md:text-sm font-black text-blue-950 uppercase tracking-tight">Media Found</h3>
-                      <p className="text-[8px] md:text-[10px] font-black text-blue-700 uppercase tracking-widest">{metadata.platform || 'Detected Platform'}</p>
+                      <div className="flex items-center gap-1.5">
+                         <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                           metadata.platform?.toLowerCase().includes('youtube') ? 'bg-red-500' :
+                           metadata.platform?.toLowerCase().includes('instagram') ? 'bg-pink-500' :
+                           metadata.platform?.toLowerCase().includes('tiktok') ? 'bg-black' :
+                           'bg-blue-500'
+                         }`} />
+                         <p className={`text-[8px] md:text-[10px] font-black uppercase tracking-widest ${
+                           metadata.platform?.toLowerCase().includes('youtube') ? 'text-red-600' :
+                           metadata.platform?.toLowerCase().includes('instagram') ? 'text-pink-600' :
+                           'text-blue-700'
+                         }`}>{metadata.platform || 'Detected Platform'}</p>
+                      </div>
                     </div>
                   </div>
                   <button onClick={() => setShowModal(false)} className="w-7 h-7 md:w-8 md:h-8 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors">
@@ -486,37 +498,73 @@ export default function HeroDownloader() {
                    <p className="text-[8px] md:text-[10px] text-slate-400 text-center font-medium uppercase tracking-tighter">Ready · {(metadata.duration / 60).toFixed(1)} min</p>
                 </div>
 
-                {(phase === 'ready' || phase === 'error' || phase === 'downloading') && (
+                {(phase === 'ready' || phase === 'error' || phase === 'downloading' || phase === 'done') && (
                   <div className="space-y-3 md:space-y-4">
                     {(metadata.platform?.toLowerCase().includes('youtube') || url.toLowerCase().includes('youtube.com') || url.toLowerCase().includes('youtu.be')) ? (
-                      <div className="bg-red-50/50 border border-red-100 rounded-[2rem] p-5 md:p-6 text-center">
-                        <div className="flex items-center justify-center gap-3 mb-3">
-                           <div className="w-8 h-8 bg-red-100 text-red-600 rounded-xl flex items-center justify-center shrink-0">
-                             <AlertCircle size={18} />
+                      <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-5 md:p-6 text-center relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-red-500/20" />
+                        <div className="flex flex-col items-center gap-3">
+                           <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-red-500 shadow-sm border border-red-50 shrink-0">
+                             <AlertCircle size={20} />
                            </div>
-                           <h4 className="text-xs md:text-sm font-black text-red-950 uppercase tracking-tight">YouTube Maintenance</h4>
+                           <div>
+                             <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight mb-0.5">Service Maintenance</h4>
+                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">YouTube Engine Upgrading</p>
+                           </div>
+                           <p className="text-[9px] md:text-[10px] text-slate-500 font-medium leading-relaxed max-w-[220px] mx-auto">
+                             Upgrading for better quality. Please use <span className="text-blue-600 font-bold">Instagram or TikTok</span>.
+                           </p>
+                           <button 
+                             onClick={() => setShowModal(false)}
+                             className="mt-1 w-full py-3.5 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg hover:bg-black transition-all"
+                           >
+                             Try Another Link
+                           </button>
                         </div>
-                        <p className="text-[10px] md:text-xs text-slate-500 font-medium leading-relaxed mb-4 px-2">
-                          Upgrading for better quality. Use <span className="text-blue-600 font-bold">Instagram or TikTok</span> in the meantime.
-                        </p>
-                        <button 
-                          onClick={() => setShowModal(false)}
-                          className="w-full bg-slate-900 text-white font-black py-3.5 md:py-4 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 transition-all text-[10px] uppercase tracking-widest hover:scale-[1.02] active:scale-95"
-                        >
-                          Reset & Try Another
-                        </button>
                       </div>
                     ) : (
                       <>
-                        {phase === 'downloading' ? (
-                          <div className="py-2">
-                            <div className="flex justify-between text-[8px] md:text-[10px] font-black text-blue-900 uppercase tracking-widest mb-3 md:mb-4">
-                              <span>🚀 Processing...</span>
-                              <span>{Math.round(progress)}%</span>
+                        {(phase === 'downloading' || phase === 'done') ? (
+                          <div className="py-4 px-2">
+                            <div className="flex justify-between text-[10px] font-black text-blue-900 uppercase tracking-widest mb-4">
+                              <span className="flex items-center gap-2">
+                                {phase === 'done' ? (
+                                  <span className="text-emerald-600 flex items-center gap-2">
+                                    <CheckCircle size={14} /> Extraction Complete
+                                  </span>
+                                ) : (
+                                  <>
+                                    <RefreshCw size={12} className="animate-spin text-blue-600" />
+                                    Processing Media...
+                                  </>
+                                )}
+                              </span>
+                              <span className="bg-blue-600 text-white px-2 py-0.5 rounded-lg">{Math.round(progress)}%</span>
                             </div>
-                            <div className="h-2.5 md:h-3 bg-blue-50 rounded-full overflow-hidden shadow-inner p-0.5">
-                              <div className="h-full bg-blue-700 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+                            <div className="h-4 bg-slate-50 rounded-full overflow-hidden shadow-inner p-1 border border-slate-100">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progress}%` }}
+                                className={`h-full rounded-full relative shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all duration-500 ${phase === 'done' ? 'bg-emerald-500' : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}
+                              >
+                                <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:20px_20px] animate-shimmer opacity-30" />
+                              </motion.div>
                             </div>
+
+                            {phase === 'done' && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="mt-8 flex gap-3"
+                              >
+                                 <button onClick={() => { setPhase('idle'); setUrl(''); setShowModal(false); setMetadata(null); }} className="flex-1 bg-slate-100 text-slate-900 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                                   New Link
+                                 </button>
+                                 <a href={`${API_BASE}/download/${jobId}`} download className="flex-2 bg-blue-700 text-white font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-blue-800 transition-all text-center flex items-center justify-center gap-2 shadow-xl shadow-blue-200 px-8">
+                                   <Download size={16} /> Save File
+                                 </a>
+                              </motion.div>
+                            )}
                           </div>
                         ) : (
                           <>
@@ -559,28 +607,6 @@ export default function HeroDownloader() {
                     )}
                     
                     {phase === 'error' && <p className="text-[9px] md:text-[10px] text-red-500 font-bold text-center">{errorMsg}</p>}
-                  </div>
-                )}
-
-                {(phase === 'downloading' || phase === 'done') && (
-                  <div className="py-1 md:py-2">
-                    <div className="flex justify-between text-[8px] md:text-[10px] font-black text-blue-900 uppercase tracking-widest mb-3 md:mb-4">
-                      <span>{phase === 'done' ? '✨ Complete' : '🚀 Processing...'}</span>
-                      <span>{Math.round(progress)}%</span>
-                    </div>
-                    <div className="h-2.5 md:h-3 bg-blue-50 rounded-full overflow-hidden shadow-inner p-0.5">
-                      <div className="h-full bg-blue-700 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
-                    </div>
-                    {phase === 'done' && (
-                      <div className="mt-4 md:mt-6 flex gap-2 md:gap-3">
-                         <button onClick={() => { setPhase('idle'); setUrl(''); setShowModal(false); setMetadata(null); }} className="flex-1 bg-slate-900 text-white font-black py-3.5 md:py-4 rounded-xl md:rounded-2xl text-[8px] md:text-[10px] uppercase tracking-widest hover:bg-black transition-all">
-                           New
-                         </button>
-                         <a href={`${API_BASE}/download/${jobId}`} download className="flex-1 bg-blue-700 text-white font-black py-3.5 md:py-4 rounded-xl md:rounded-2xl text-[8px] md:text-[10px] uppercase tracking-widest hover:bg-blue-800 transition-all text-center flex items-center justify-center gap-2">
-                           <Download size={12} className="md:size-[14px]" /> Save
-                         </a>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
