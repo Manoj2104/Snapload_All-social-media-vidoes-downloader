@@ -488,38 +488,61 @@ export default function HeroDownloader() {
 
                 {(phase === 'ready' || phase === 'error') && (
                   <div className="space-y-3 md:space-y-4">
-                    <div className="grid grid-cols-3 gap-2">
-                      {QUALITIES.map(q => {
-                        const isPremium = q === '1080p' || q === '4K';
-                        const isDisabled = isPremium && !user;
-                        return (
-                          <button 
-                            key={q} 
-                            onClick={() => !isDisabled && setQuality(q)} 
-                            className={`relative py-2 md:py-3 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${quality === q ? 'bg-blue-700 text-white shadow-lg shadow-blue-200' : 'bg-white border border-slate-100 text-slate-400 hover:bg-blue-50 hover:text-blue-700'} ${isDisabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
-                          >
-                            {q}
-                            {isDisabled && <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[6px] px-1 rounded-full px-1.5 py-0.5">VIP</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    
-                    <button 
-                      onClick={startDownload} 
-                      className="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-4 md:py-5 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 md:gap-3 shadow-2xl shadow-blue-600/20 transition-all text-xs md:text-sm uppercase tracking-[0.1em]"
-                    >
-                      <Download size={18} />
-                      Download {quality}
-                    </button>
-                    
-                    {user ? (
-                      <div className="flex items-center justify-between px-2 text-[8px] md:text-[10px] font-black uppercase tracking-tight">
-                        <span className="text-slate-400">Download Cost: 50 Credits</span>
-                        <span className="text-blue-700">Balance: {user.credits} CR</span>
+                    {metadata.platform?.toLowerCase().includes('youtube') ? (
+                      <div className="bg-red-50 border border-red-100 rounded-2xl md:rounded-3xl p-6 md:p-8 text-center space-y-4">
+                        <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                          <AlertCircle size={24} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm md:text-base font-black text-red-950 uppercase tracking-tight">YouTube Unavailable</h4>
+                          <p className="text-[10px] md:text-xs text-red-600/70 font-bold uppercase tracking-widest mt-1">Temporary Service Maintenance</p>
+                        </div>
+                        <p className="text-[10px] md:text-xs text-slate-500 font-medium leading-relaxed">
+                          YouTube downloads are currently being upgraded for better quality. Please try <span className="text-blue-600 font-bold">Instagram, TikTok, or Twitter</span> in the meantime.
+                        </p>
+                        <button 
+                          disabled
+                          className="w-full bg-slate-100 text-slate-400 font-black py-4 md:py-5 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 md:gap-3 transition-all text-xs md:text-sm uppercase tracking-[0.1em] cursor-not-allowed"
+                        >
+                          Download Disabled
+                        </button>
                       </div>
                     ) : (
-                      <p className="text-[8px] md:text-[10px] text-amber-600 font-bold text-center">Sign in for 1080p, 4K & Unlimited 720p</p>
+                      <>
+                        <div className="grid grid-cols-3 gap-2">
+                          {QUALITIES.map(q => {
+                            const isPremium = q === '1080p' || q === '4K';
+                            const isDisabled = isPremium && !user;
+                            return (
+                              <button 
+                                key={q} 
+                                onClick={() => !isDisabled && setQuality(q)} 
+                                className={`relative py-2 md:py-3 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${quality === q ? 'bg-blue-700 text-white shadow-lg shadow-blue-200' : 'bg-white border border-slate-100 text-slate-400 hover:bg-blue-50 hover:text-blue-700'} ${isDisabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
+                              >
+                                {q}
+                                {isDisabled && <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[6px] px-1 rounded-full px-1.5 py-0.5">VIP</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        
+                        <button 
+                          onClick={startDownload} 
+                          className="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-4 md:py-5 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 md:gap-3 shadow-2xl shadow-blue-600/20 transition-all text-xs md:text-sm uppercase tracking-[0.1em]"
+                        >
+                          <Download size={18} />
+                          Download {quality}
+                        </button>
+                        
+                        {user ? (
+                          <div className="flex items-center justify-between px-2 text-[8px] md:text-[10px] font-black uppercase tracking-tight">
+                            <span className="text-slate-400">Download Cost: 50 Credits</span>
+                            <span className="text-blue-700">Balance: {user.credits} CR</span>
+                          </div>
+                        ) : (
+                          <p className="text-[8px] md:text-[10px] text-amber-600 font-bold text-center">Sign in for 1080p, 4K & Unlimited 720p</p>
+                        )}
+                      </>
                     )}
                     
                     {phase === 'error' && <p className="text-[9px] md:text-[10px] text-red-500 font-bold text-center">{errorMsg}</p>}
