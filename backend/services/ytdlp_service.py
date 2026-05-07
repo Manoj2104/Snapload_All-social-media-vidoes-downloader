@@ -12,7 +12,7 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Any
 
 import yt_dlp
 
@@ -128,7 +128,11 @@ def init_cookies() -> str | None:
 COOKIE_FILE = init_cookies()
 
 
-def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
+def get_common_opts(
+    is_youtube: bool = True,
+    is_download: bool = False,
+    youtube_clients: list[str] | None = None,
+) -> dict:
     """Build safe yt-dlp options for metadata and downloads."""
 
     opts = {
@@ -157,6 +161,9 @@ def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
 
     if HAS_IMPERSONATE:
         opts["impersonate"] = "chrome"
+
+    if is_youtube and youtube_clients:
+        opts["extractor_args"] = {"youtube": {"player_client": youtube_clients}}
 
     if is_youtube and not is_download:
         opts["youtube_skip_dash_manifest"] = True
@@ -279,6 +286,135 @@ def _format_attempts(format_type: str, quality: str) -> list[str]:
 
     return ["bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]", "bv*+ba/b"]
 
+def _youtube_client_profiles(is_youtube: bool) -> list[list[str] | None]:
+    if not is_youtube:
+        return [None]
+    return [
+        None,
+        ["web"],
+        ["mweb", "web"],
+        ["ios", "android", "web"],
+    ]
+
+
+def _format_height(format_info: dict[str, Any]) -> int:
+    return int(format_info.get("height") or 0)
+
+
+def _format_tbr(format_info: dict[str, Any]) -> float:
+    return float(format_info.get("tbr") or format_info.get("vbr") or format_info.get("abr") or 0)
+
+
+def _usable_formats(info: dict[str, Any]) -> list[dict[str, Any]]:
+    formats = info.get("formats") or []
+    usable = []
+    for fmt in formats:
+        if not fmt.get("format_id"):
+            continue
+        if fmt.get("vcodec") == "none" and fmt.get("acodec") == "none":
+            continue
+        if fmt.get("protocol") in {"mhtml", "images"}:
+            continue
+        usable.append(fmt)
+    return usable
+
+
+def _best_by_quality(formats: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not formats:
+        return None
+    return sorted(
+        formats,
+        key=lambda fmt: (_format_height(fmt), _format_tbr(fmt), fmt.get("filesize") or fmt.get("filesize_approx") or 0),
+        reverse=True,
+    )[0]
+
+
+def _select_available_format(info: dict[str, Any], format_type: str, quality: str) -> str | None:
+    """Pick exact format ids from the actual list returned by YouTube.
+
+    Some videos/accounts return no match for generic selectors like `bv*+ba/b`.
+    Selecting an existing format_id avoids the "Requested format is not available"
+    loop for videos that only expose a small set of progressive formats.
+    """
+
+    formats = _usable_formats(info)
+    height = _quality_height(quality)
+
+    audio_formats = [fmt for fmt in formats if fmt.get("acodec") != "none" and fmt.get("vcodec") == "none"]
+    video_only_formats = [fmt for fmt in formats if fmt.get("vcodec") != "none" and fmt.get("acodec") == "none"]
+    progressive_formats = [fmt for fmt in formats if fmt.get("vcodec") != "none" and fmt.get("acodec") != "none"]
+
+    if format_type == "audio":
+        best_audio = _best_by_quality([fmt for fmt in audio_formats if fmt.get("ext") == "m4a"]) or _best_by_quality(audio_formats)
+        return str(best_audio["format_id"]) if best_audio else None
+
+    def under_requested(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not height:
+            return items
+        return [fmt for fmt in items if _format_height(fmt) and _format_height(fmt) <= height]
+
+    video_mp4 = under_requested([fmt for fmt in video_only_formats if fmt.get("ext") == "mp4"])
+    best_video = _best_by_quality(video_mp4) or _best_by_quality(under_requested(video_only_formats))
+    best_audio = _best_by_quality([fmt for fmt in audio_formats if fmt.get("ext") == "m4a"]) or _best_by_quality(audio_formats)
+    if best_video and best_audio:
+        return f"{best_video['format_id']}+{best_audio['format_id']}"
+
+    progressive_mp4 = under_requested([fmt for fmt in progressive_formats if fmt.get("ext") == "mp4"])
+    best_progressive = _best_by_quality(progressive_mp4) or _best_by_quality(under_requested(progressive_formats))
+    if best_progressive:
+        return str(best_progressive["format_id"])
+
+    any_progressive = _best_by_quality(progressive_formats)
+    if any_progressive:
+        return str(any_progressive["format_id"])
+
+    any_video = _best_by_quality(video_only_formats)
+    if any_video and best_audio:
+        return f"{any_video['format_id']}+{best_audio['format_id']}"
+
+    return None
+
+
+def _dynamic_format_attempts(url: str, is_youtube: bool, format_type: str, quality: str) -> list[tuple[str, list[str] | None]]:
+    attempts: list[tuple[str, list[str] | None]] = []
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+
+    for clients in _youtube_client_profiles(is_youtube):
+        try:
+            opts = get_common_opts(is_youtube, is_download=True, youtube_clients=clients)
+            opts.update({"skip_download": True, "noplaylist": True, "extract_flat": False})
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+
+            if info.get("_type") == "playlist":
+                entries = info.get("entries") or []
+                info = entries[0] if entries else info
+
+            selected = _select_available_format(info, format_type, quality)
+            usable = _usable_formats(info)
+            heights = sorted({_format_height(fmt) for fmt in usable if _format_height(fmt)})
+            print(
+                "[formats] "
+                f"clients={clients or 'default'} count={len(usable)} "
+                f"heights={heights[-6:]} selected={selected}"
+            )
+            if selected:
+                key = (selected, tuple(clients or []))
+                if key not in seen:
+                    attempts.append((selected, clients))
+                    seen.add(key)
+        except Exception as exc:
+            print(f"[formats] clients={clients or 'default'} failed: {clean_error(exc)}")
+
+    for clients in _youtube_client_profiles(is_youtube):
+        for fmt in _format_attempts(format_type, quality):
+            key = (fmt, tuple(clients or []))
+            if key not in seen:
+                attempts.append((fmt, clients))
+                seen.add(key)
+
+    return attempts
+
 
 def download_video_task(job_id: str, url: str, format_type: str, quality: str) -> None:
     cleanup_downloads()
@@ -294,10 +430,15 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
     print(f"[download request] type={format_type} quality={quality}")
 
     last_error = "Download failed"
-    for fmt in _format_attempts(format_type, quality):
-        print(f"[download] format => {fmt}")
+    attempts = _dynamic_format_attempts(url, youtube, format_type, quality)
+    for fmt, youtube_clients in attempts:
+        print(f"[download] format => {fmt} clients={youtube_clients or 'default'}")
         try:
-            opts = get_common_opts(youtube, is_download=True)
+            opts = get_common_opts(
+                youtube,
+                is_download=True,
+                youtube_clients=youtube_clients,
+            )
             opts.update(
                 {
                     "format": fmt,
@@ -344,6 +485,13 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
             print(f"[download retry] {last_error}")
             if "Requested format is not available" not in last_error:
                 break
+
+    if "Requested format is not available" in last_error:
+        last_error = (
+            "This video did not expose downloadable video formats to the server. "
+            "Try 480p/720p, MP3, a fresh cookies.txt, or another YouTube URL. "
+            f"Last yt-dlp error: {last_error}"
+        )
 
     print(f"[download failed] {last_error}")
     redis_client.hset(
