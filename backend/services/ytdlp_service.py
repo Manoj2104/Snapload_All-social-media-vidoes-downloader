@@ -10,6 +10,14 @@ import time
 
 from services.redis_service import redis_client
 
+# Check for impersonation support
+HAS_IMPERSONATE = False
+try:
+    from yt_dlp.utils.impersonate import IMPERSONATE_TARGETS
+    HAS_IMPERSONATE = True
+except ImportError:
+    pass
+
 # =========================================================
 # DOWNLOAD DIRECTORY
 # =========================================================
@@ -207,10 +215,14 @@ def get_common_opts(
 
             "Referer": "https://www.youtube.com/",
         },
-
-        # IMPERSONATION
-        "impersonate": "chrome",
     }
+
+    # =====================================================
+    # DYNAMIC IMPERSONATION (if available)
+    # =====================================================
+
+    if HAS_IMPERSONATE:
+        opts["impersonate"] = "chrome"
 
     # =====================================================
     # YOUTUBE SETTINGS
