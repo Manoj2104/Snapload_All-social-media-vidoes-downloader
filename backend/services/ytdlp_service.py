@@ -172,10 +172,8 @@ def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
     if is_youtube:
         opts["extractor_args"] = {
             "youtube": {
-                # MULTI-CLIENT BYPASS (Critical for Render IPs)
-                # We prioritize mobile clients (ios, android) because they are 
-                # significantly less likely to be blocked than the "web" client.
-                "player_client": ["ios", "android", "web", "web_creator", "mweb", "tv", "tv_embedded"],
+                # ANDROID APP BYPASS (Most stable for Cloud IPs)
+                "player_client": ["android", "android_music", "ios", "web", "web_creator", "mweb", "tv", "tv_embedded"],
             }
         }
 
