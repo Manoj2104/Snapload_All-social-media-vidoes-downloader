@@ -342,19 +342,19 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
 
         if q == "1080":
 
-            fmt = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/22/18/best[height<=1080][ext=mp4]/best"
+            fmt = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
 
         elif q == "720":
 
-            fmt = "22/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/18/best[height<=720][ext=mp4]/best"
+            fmt = "22/bestvideo[height<=720]+bestaudio/best[height<=720]/best"
 
         elif q in ["480", "360"]:
 
-            fmt = "18/best[height<=480][ext=mp4]/best"
+            fmt = "18/best[height<=480]/best"
 
         else:
 
-            fmt = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/22/18/best"
+            fmt = "bestvideo+bestaudio/best"
 
     print(
         f"[download] format => {fmt}"
@@ -411,34 +411,34 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
         # AUDIO POST PROCESS
         # =================================================
 
-            if format_type == "audio":
-                opts["postprocessors"] = [
-                    {
-                        "key": "FFmpegExtractAudio",
-                        "preferredcodec": "mp3",
-                        "preferredquality": "192",
-                    }
-                ]
-            else:
-                opts["merge_output_format"] = "mp4"
+        if format_type == "audio":
+            opts["postprocessors"] = [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "192",
+                }
+            ]
+        else:
+            opts["merge_output_format"] = "mp4"
 
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                ydl.download([url])
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download([url])
 
-            final_file = find_downloaded_file(job_id, extension)
-            if not final_file:
-                raise Exception("Downloaded file not found")
+        final_file = find_downloaded_file(job_id, ext)
+        if not final_file:
+            raise Exception("Downloaded file not found")
 
-            redis_client.hset(
-                f"job:{job_id}",
-                mapping={
-                    "status": "completed",
-                    "progress": "100",
-                    "downloadUrl": final_file,
-                },
-            )
-            print(f"[download completed] {final_file}")
-            return
+        redis_client.hset(
+            f"job:{job_id}",
+            mapping={
+                "status": "completed",
+                "progress": "100",
+                "downloadUrl": final_file,
+            },
+        )
+        print(f"[download completed] {final_file}")
+        return
         except Exception as exc:
             last_error = clean_error(exc)
             print(f"[download retry] {last_error}")
