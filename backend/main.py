@@ -52,8 +52,8 @@ def debug_cookies():
         "YT_COOKIES_FILE_env": os.environ.get("YT_COOKIES_FILE"),
         "YT_COOKIES_CONTENT_env": "SET" if os.environ.get("YT_COOKIES_CONTENT") else "NOT SET",
         "env_path_exists": os.path.isfile(os.environ.get("YT_COOKIES_FILE", "")),
-        "downloads_dir": os.listdir("downloads"),
-        "yt_cookies_exists": os.path.isfile("downloads/yt_cookies.txt"),
-        "yt_cookies_size": os.path.getsize("downloads/yt_cookies.txt") if os.path.isfile("downloads/yt_cookies.txt") else 0,
+        "downloads_dir": os.listdir("downloads") if os.path.isdir("downloads") else [],
+        "cookies_exists": os.path.isfile("downloads/cookies.txt"),
+        "cookies_size": os.path.getsize("downloads/cookies.txt") if os.path.isfile("downloads/cookies.txt") else 0,
         "cwd": os.getcwd(),
     }
