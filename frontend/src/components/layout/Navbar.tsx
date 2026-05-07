@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Download, Menu, X, User as UserIcon, LogOut, CreditCard } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import AuthModals from '@/components/auth/AuthModals';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -80,26 +81,76 @@ export default function Navbar() {
           </button>
         </div>
       </nav>
-      {open && (
-        <div className="fixed inset-0 z-40 bg-white pt-24 flex flex-col items-center">
-          {['Pricing', 'FAQ', 'About'].map(l => (
-            <Link key={l} href={l === 'About' ? '/about' : l === 'FAQ' ? '/faq' : '/pricing'}
-              onClick={() => setOpen(false)}
-              className="px-8 py-6 text-3xl font-black border-b border-slate-100 text-slate-900 w-full text-center">
-              {l}
-            </Link>
-          ))}
-          {!user && (
-            <div className="w-full px-10 mt-10 space-y-4">
-              <button onClick={() => openAuth('login')} className="w-full py-5 text-2xl font-black text-blue-700 border-2 border-blue-700 rounded-2xl">Login</button>
-              <button onClick={() => openAuth('signup')} className="w-full py-5 text-2xl font-black text-white bg-blue-700 rounded-2xl">Sign Up</button>
+      <AnimatePresence>
+        {open && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed inset-0 z-40 bg-white/98 backdrop-blur-xl pt-24 pb-10 flex flex-col items-center overflow-y-auto"
+          >
+            <div className="w-full max-w-sm px-6 flex-1 flex flex-col">
+              <div className="space-y-2 mb-10">
+                {['Pricing', 'FAQ', 'About'].map(l => (
+                  <Link 
+                    key={l} 
+                    href={l === 'About' ? '/about' : l === 'FAQ' ? '/faq' : '/pricing'}
+                    onClick={() => setOpen(false)}
+                    className="block py-4 text-2xl font-black text-blue-950 border-b border-slate-50 transition-all active:pl-4"
+                  >
+                    {l}
+                  </Link>
+                ))}
+                {user && (
+                  <Link 
+                    href="/settings" 
+                    onClick={() => setOpen(false)} 
+                    className="block py-4 text-2xl font-black text-blue-950 border-b border-slate-50 transition-all active:pl-4"
+                  >
+                    Profile Settings
+                  </Link>
+                )}
+              </div>
+
+              {user ? (
+                <div className="mt-auto space-y-6">
+                  <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex items-center justify-between shadow-sm">
+                    <div>
+                      <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Your Balance</p>
+                      <p className="text-2xl font-black text-blue-700">{user.credits} Credits</p>
+                    </div>
+                    <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                      <CreditCard size={24} />
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => { logout(); setOpen(false); }}
+                    className="w-full py-4 rounded-2xl font-black text-red-500 bg-red-50 hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                  >
+                    <LogOut size={20} /> Logout Account
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-auto space-y-4 pt-10">
+                  <p className="text-center text-sm font-bold text-slate-400 mb-6 uppercase tracking-[0.2em]">Join the Community</p>
+                  <button 
+                    onClick={() => openAuth('login')} 
+                    className="w-full py-5 text-xl font-black text-blue-700 bg-blue-50 rounded-[1.8rem] transition-all active:scale-95 border border-blue-100 shadow-sm"
+                  >
+                    Login
+                  </button>
+                  <button 
+                    onClick={() => openAuth('signup')} 
+                    className="w-full py-5 text-xl font-black text-white bg-blue-700 rounded-[1.8rem] transition-all active:scale-95 shadow-xl shadow-blue-200"
+                  >
+                    Create Account
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-          {user && (
-             <Link href="/settings" onClick={() => setOpen(false)} className="px-8 py-6 text-3xl font-black border-b border-slate-100 text-slate-900 w-full text-center">Profile</Link>
-          )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AuthModals isOpen={authOpen} onClose={() => setAuthOpen(false)} initialMode={authMode} />
     </>
   );
