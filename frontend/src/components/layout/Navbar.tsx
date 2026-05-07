@@ -30,13 +30,13 @@ export default function Navbar() {
     <>
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? 'bg-white/90 backdrop-blur-md shadow-sm border-b border-blue-100 py-3' : 'bg-transparent py-5'}`}>
         <div className="max-w-6xl mx-auto px-5 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-black text-2xl group">
+          <a href="/" className="flex items-center gap-2 font-black text-2xl group">
             <div className="w-10 h-10 bg-blue-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-blue-200">
               <Download size={20} className="text-white" strokeWidth={3} />
             </div>
             <span className="text-blue-950">Snap</span>
             <span className="text-blue-600">Load</span>
-          </Link>
+          </a>
           
           <div className="hidden md:flex items-center gap-8">
             {['Pricing', 'FAQ', 'About'].map(l => (
