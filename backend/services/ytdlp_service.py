@@ -175,9 +175,9 @@ def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
             "youtube": {
                 # MULTI-CLIENT BYPASS (Critical for Render IPs)
                 "player_client": (
-                    ["web", "mweb", "ios", "android", "tv"]
+                    ["web", "web_creator", "mweb", "ios", "android", "tv", "tv_embedded"]
                     if is_download
-                    else ["ios", "android", "web", "mweb", "tv"]
+                    else ["ios", "android", "web", "web_creator", "mweb", "tv", "tv_embedded"]
                 ),
             }
         }
