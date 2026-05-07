@@ -63,3 +63,6 @@ def debug_cookies():
         "cookies_size": os.path.getsize("downloads/cookies.txt") if os.path.isfile("downloads/cookies.txt") else 0,
         "cwd": os.getcwd(),
     }
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
