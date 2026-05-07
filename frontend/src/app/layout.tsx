@@ -1,9 +1,13 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import ScrollRevealInit from '@/components/ui/ScrollRevealInit';
 
-const inter = Inter({ subsets: ['latin'], weight: ['300','400','500','600','700','800','900'], display: 'swap' });
+const geist = localFont({
+  src: './fonts/GeistVF.woff',
+  variable: '--font-geist',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'SnapLoad — Download YouTube, TikTok & Instagram Videos Free',
@@ -21,7 +25,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={geist.className}>
         <ScrollRevealInit />
         {children}
       </body>
