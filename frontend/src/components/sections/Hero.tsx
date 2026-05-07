@@ -331,29 +331,58 @@ export default function HeroDownloader() {
         <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="relative max-w-3xl mx-auto">
           <div className="relative bg-white/80 backdrop-blur-xl border border-blue-100/50 rounded-[2rem] md:rounded-[2.5rem] p-2 md:p-3 shadow-[0_32px_64px_-16px_rgba(37,99,235,0.12)]">
             <div className="flex flex-col md:flex-row gap-2 md:gap-3 items-center">
-              <div className="w-full flex items-center gap-2 md:gap-3 bg-white rounded-2xl md:rounded-[1.8rem] px-4 md:px-6 py-3 md:py-4 border border-slate-100 focus-within:border-blue-400 focus-within:shadow-[0_0_20px_rgba(37,99,235,0.06)] transition-all duration-500 relative">
-                <Search size={18} className="text-slate-300 shrink-0" />
+              <div className="w-full flex items-center gap-2 md:gap-3 bg-white rounded-2xl md:rounded-[1.8rem] px-3 md:px-6 py-3 md:py-4 border border-slate-100 focus-within:border-blue-400 focus-within:shadow-[0_0_20px_rgba(37,99,235,0.06)] transition-all duration-500 relative overflow-hidden">
+                <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+                  <Search size={18} className="text-slate-300" />
+                  <AnimatePresence>
+                    {url && (
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.5, x: -10 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.5, x: -10 }}
+                        onClick={handlePaste}
+                        className="md:hidden p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                        title="Paste new link"
+                      >
+                        <ClipboardPaste size={14} />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </div>
                 <input 
                   value={url} 
                   onChange={e => setUrl(e.target.value)} 
                   onKeyDown={e => e.key === 'Enter' && analyze()} 
                   placeholder="Paste video link..." 
-                  className="bg-transparent flex-1 text-blue-950 placeholder:text-slate-300 outline-none font-bold text-sm md:text-base pr-40 md:pr-48" 
+                  className="bg-transparent flex-1 text-blue-950 placeholder:text-slate-300 outline-none font-bold text-sm md:text-base pr-28 md:pr-48" 
                 />
                 
                 <div className="absolute right-2 md:right-3 flex items-center gap-1 md:gap-1.5">
-                  <button
-                    onClick={handlePaste}
-                    className="flex items-center gap-1 px-2 md:px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 hover:bg-blue-600 hover:text-white transition-all text-[9px] md:text-[10px] font-black uppercase tracking-tight shadow-sm active:scale-95"
-                    title="Paste link"
-                  >
-                    <ClipboardPaste size={14} />
-                    <span className="hidden sm:inline">Paste</span>
-                  </button>
-
                   <AnimatePresence>
-                    {url && (
+                    {!url ? (
+                      <motion.button
+                        key="paste-right"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        onClick={handlePaste}
+                        className="flex items-center gap-1 px-2 md:px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 hover:bg-blue-600 hover:text-white transition-all text-[9px] md:text-[10px] font-black uppercase tracking-tight shadow-sm active:scale-95"
+                        title="Paste link"
+                      >
+                        <ClipboardPaste size={14} />
+                        <span className="hidden sm:inline">Paste</span>
+                      </motion.button>
+                    ) : (
                       <>
+                        <button
+                          onClick={handlePaste}
+                          className="hidden md:flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 hover:bg-blue-600 hover:text-white transition-all text-[10px] font-black uppercase tracking-tight shadow-sm active:scale-95"
+                          title="Paste link"
+                        >
+                          <ClipboardPaste size={14} />
+                          <span className="hidden sm:inline">Paste</span>
+                        </button>
+                        
                         <motion.button
                           initial={{ opacity: 0, scale: 0.8 }}
                           animate={{ opacity: 1, scale: 1 }}
@@ -369,15 +398,23 @@ export default function HeroDownloader() {
                           initial={{ opacity: 0, x: 10 }}
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: 10 }}
-                          className="hidden xs:flex items-center gap-1 px-1.5 md:px-2.5 py-1 bg-blue-600 rounded-lg md:rounded-xl shadow-lg shadow-blue-200"
+                          className="flex items-center gap-1 px-1.5 md:px-2.5 py-1 bg-blue-600 rounded-lg md:rounded-xl shadow-lg shadow-blue-200"
                         >
                           <div className="w-1 h-1 md:w-1.5 md:h-1.5 bg-white rounded-full animate-pulse" />
-                          <span className="text-[8px] md:text-[9px] font-black text-white uppercase tracking-tight truncate max-w-[50px] md:max-w-none">
-                            {url.toLowerCase().includes('youtube') || url.toLowerCase().includes('youtu.be') ? 'YouTube' : 
-                             url.toLowerCase().includes('instagram') ? 'Instagram' :
-                             url.toLowerCase().includes('tiktok') ? 'TikTok' :
-                             url.toLowerCase().includes('twitter') || url.toLowerCase().includes('x.com') ? 'X/Twitter' :
-                             url.toLowerCase().includes('facebook') ? 'Facebook' : 'Media'}
+                          <span className="text-[8px] md:text-[9px] font-black text-white uppercase tracking-tight">
+                            {url.toLowerCase().includes('youtube') || url.toLowerCase().includes('youtu.be') ? (
+                              <><span className="hidden md:inline">YouTube</span><span className="md:hidden">YT</span></>
+                            ) : url.toLowerCase().includes('instagram') ? (
+                              <><span className="hidden md:inline">Instagram</span><span className="md:hidden">IG</span></>
+                            ) : url.toLowerCase().includes('tiktok') ? (
+                              <><span className="hidden md:inline">TikTok</span><span className="md:hidden">TT</span></>
+                            ) : url.toLowerCase().includes('twitter') || url.toLowerCase().includes('x.com') ? (
+                              <><span className="hidden md:inline">X/Twitter</span><span className="md:hidden">X</span></>
+                            ) : url.toLowerCase().includes('facebook') ? (
+                              <><span className="hidden md:inline">Facebook</span><span className="md:hidden">FB</span></>
+                            ) : (
+                              <><span className="hidden md:inline">Media</span><span className="md:hidden">...</span></>
+                            )}
                           </span>
                         </motion.div>
                       </>
