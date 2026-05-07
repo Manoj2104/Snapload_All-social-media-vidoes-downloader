@@ -93,78 +93,73 @@ export default function Navbar() {
               className="fixed inset-0 z-[90] bg-white/40 backdrop-blur-sm"
             />
             
-            {/* Card Content */}
-            <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center px-6">
+            {/* Centered Compact Card */}
+            <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center px-8">
               <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                className="w-full max-w-[320px] bg-white/95 backdrop-blur-3xl rounded-[2.5rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] border border-white overflow-hidden pointer-events-auto flex flex-col"
+                initial={{ y: 300, opacity: 0, scale: 0.9 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: 300, opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                className="w-full max-w-[300px] bg-white rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] border border-white overflow-hidden pointer-events-auto flex flex-col will-change-transform"
               >
-                <div className="p-6 flex flex-col items-center relative">
-                  <button onClick={() => setOpen(false)} className="absolute top-5 right-5 p-1.5 bg-slate-50 rounded-full text-slate-300 active:scale-90 transition-transform">
-                    <X size={16} />
+                <div className="p-5 flex flex-col items-center relative">
+                  <button onClick={() => setOpen(false)} className="absolute top-4 right-4 p-1.5 bg-slate-50 rounded-full text-slate-300">
+                    <X size={14} />
                   </button>
 
-                  <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white mb-5 shadow-lg shadow-blue-100">
-                    <Download size={22} strokeWidth={3} />
+                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white mb-4 shadow-lg shadow-blue-100">
+                    <Download size={20} strokeWidth={3} />
                   </div>
                   
-                  <div className="w-full grid grid-cols-2 gap-2 mb-5">
+                  <div className="w-full grid grid-cols-2 gap-2 mb-4">
                     {[
-                      { label: 'Pricing', href: '/pricing', icon: <CreditCard size={18} />, color: 'bg-blue-50', iconColor: 'text-blue-600' },
-                      { label: 'FAQ', href: '/faq', icon: <Play size={18} />, color: 'bg-indigo-50', iconColor: 'text-indigo-600' },
-                      { label: 'About', href: '/about', icon: <UserIcon size={18} />, color: 'bg-emerald-50', iconColor: 'text-emerald-600' },
-                      { label: 'Settings', href: '/settings', icon: <Shield size={18} />, color: 'bg-amber-50', iconColor: 'text-amber-600' }
+                      { label: 'Pricing', href: '/pricing', icon: <CreditCard size={16} />, color: 'bg-blue-50', iconColor: 'text-blue-600' },
+                      { label: 'FAQ', href: '/faq', icon: <Play size={16} />, color: 'bg-indigo-50', iconColor: 'text-indigo-600' },
+                      { label: 'About', href: '/about', icon: <UserIcon size={16} />, color: 'bg-emerald-50', iconColor: 'text-emerald-600' },
+                      { label: 'Settings', href: '/settings', icon: <Shield size={16} />, color: 'bg-amber-50', iconColor: 'text-amber-600' }
                     ].map(l => (
                       <Link 
                         key={l.label} 
                         href={l.href}
                         onClick={() => setOpen(false)}
-                        className="flex flex-col items-center gap-2 p-4 bg-slate-50/50 hover:bg-white hover:shadow-sm rounded-[1.8rem] transition-all group border border-slate-100/50"
+                        className="flex flex-col items-center gap-2 p-4 bg-white hover:bg-blue-50/30 rounded-2xl transition-all group border border-slate-100 shadow-sm"
                       >
-                        <div className={`w-10 h-10 ${l.color} ${l.iconColor} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                        <div className={`w-9 h-9 ${l.color} ${l.iconColor} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
                           {l.icon}
                         </div>
-                        <span className="text-[9px] font-black text-blue-900 uppercase tracking-widest">{l.label}</span>
+                        <span className="text-[8px] font-black text-blue-950 uppercase tracking-widest">{l.label}</span>
                       </Link>
                     ))}
                   </div>
 
                   {user ? (
-                    <div className="w-full space-y-3 pt-5 border-t border-slate-50">
-                      <div className="bg-blue-50/50 p-5 rounded-[1.8rem] flex flex-col gap-3 border border-blue-100/50">
-                        <div className="flex justify-between items-center">
-                          <p className="text-[8px] font-black text-blue-400 uppercase tracking-[0.2em]">Balance</p>
-                          <Zap size={12} className="text-blue-600" fill="currentColor" />
+                    <div className="w-full space-y-3 pt-4 border-t border-slate-50">
+                      <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-4 rounded-[1.5rem] flex items-center justify-between shadow-xl shadow-blue-100">
+                        <div>
+                          <p className="text-[7px] font-black text-white/50 uppercase tracking-widest mb-0.5">Balance</p>
+                          <p className="text-xl font-black text-white tracking-tighter">{user.credits} CR</p>
                         </div>
-                        <div className="flex items-baseline gap-2">
-                          <p className="text-3xl font-black text-blue-700 tracking-tighter">{user.credits}</p>
-                          <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest">CR</p>
-                        </div>
-                        <Link href="/pricing" onClick={() => setOpen(false)} className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-center text-[9px] font-black uppercase tracking-widest shadow-lg shadow-blue-200 active:scale-95 transition-all">
-                           Top Up Now
-                        </Link>
+                        <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center text-amber-400"><Zap size={14} fill="currentColor" /></div>
                       </div>
                       
                       <button 
                         onClick={() => { logout(); setOpen(false); }}
-                        className="w-full py-3 rounded-xl font-black text-red-500 text-[9px] uppercase tracking-[0.3em] hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+                        className="w-full py-2.5 rounded-xl font-black text-red-500 text-[8px] uppercase tracking-[0.4em] hover:bg-red-50 transition-all flex items-center justify-center gap-2"
                       >
                         <LogOut size={12} /> Logout Account
                       </button>
                     </div>
                   ) : (
-                    <div className="w-full space-y-2 pt-4 border-t border-slate-100">
+                    <div className="w-full space-y-2 pt-4 border-t border-slate-50">
                       <button 
                         onClick={() => openAuth('login')} 
-                        className="w-full py-3.5 text-xs font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all active:scale-95 border border-blue-100"
+                        className="w-full py-3.5 text-[10px] font-black text-blue-700 bg-blue-50 rounded-xl transition-all border border-blue-100"
                       >
                         Login
                       </button>
                       <button 
                         onClick={() => openAuth('signup')} 
-                        className="w-full py-3.5 text-xs font-black text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all active:scale-95 shadow-lg shadow-blue-200"
+                        className="w-full py-3.5 text-[10px] font-black text-white bg-blue-600 rounded-xl transition-all shadow-lg shadow-blue-200"
                       >
                         Sign Up
                       </button>

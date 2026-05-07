@@ -1,79 +1,116 @@
 'use client';
 import { useState } from 'react';
-import { Plus, Minus } from 'lucide-react';
+import { Plus, Minus, HelpCircle, Shield, Zap, Globe } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const FAQS = [
   { 
-    q: 'Is SnapLoad free to use?', 
-    a: 'Yes, completely. SnapLoad is free forever. We sustain the service through non-intrusive advertising to keep the core tool free for everyone.' 
+    q: 'How does SnapLoad work?', 
+    a: 'SnapLoad uses advanced cloud extraction technology to analyze video URLs and provide direct, high-speed download links in multiple formats and resolutions.',
+    icon: <Zap size={18} />
   },
   { 
-    q: 'Do I need to create an account?', 
-    a: 'No. SnapLoad is designed to be as easy to use as possible. You don\'t need to sign up, provide an email, or create an account to download videos.' 
+    q: 'Is it really free for everyone?', 
+    a: 'Yes! SnapLoad is committed to being a free tool. We maintain our infrastructure through premium partnerships and minimal, non-intrusive advertisements.',
+    icon: <Shield size={18} />
   },
   { 
-    q: 'What video quality can I download?', 
-    a: 'We support everything from 360p to 4K Ultra HD. You can also extract high-quality MP3 audio at up to 320kbps.' 
+    q: 'Can I download videos in 4K resolution?', 
+    a: 'Absolutely. If the source video supports 4K, SnapLoad will provide an option to download it in original Ultra HD quality without any compression.',
+    icon: <Globe size={18} />
   },
   { 
-    q: 'Does it work on mobile?', 
-    a: 'Yes! SnapLoad is fully responsive and works perfectly on iOS, Android, and tablets through any modern mobile browser.' 
+    q: 'Do I need to install any software?', 
+    a: 'No installation is required. SnapLoad is a cloud-based web application that works directly in your browser on any device, including mobile and desktop.',
+    icon: <HelpCircle size={18} />
   },
   { 
-    q: 'Is it safe to use?', 
-    a: 'Absolutely. We don\'t require any software installation or extensions. All downloads are processed securely and we never store your personal data.' 
+    q: 'Which platforms are currently supported?', 
+    a: 'We currently support Instagram (Reels, Stories, IGTV), TikTok (without watermark), YouTube, Twitter, and Facebook. More platforms are being added monthly.',
+    icon: <Zap size={18} />
   },
   { 
-    q: 'Can I download Instagram Reels?', 
-    a: 'Yes, our tool supports Instagram Reels, Stories, and IGTV videos. Just paste the link and hit Analyze.' 
-  },
-  { 
-    q: 'How do I download TikTok without watermark?', 
-    a: 'When you paste a TikTok link, SnapLoad automatically identifies the original video file and provides a direct download link without the platform watermark.' 
-  },
-  { 
-    q: 'What formats are supported?', 
-    a: 'Most commonly we provide MP4 for video and MP3/M4A for audio. We also support WebM for high-resolution formats when available.' 
-  },
+    q: 'Is my data secure while using SnapLoad?', 
+    a: 'Security is our priority. We do not store your personal information, download history, or account details. All extraction processes are encrypted and private.',
+    icon: <Shield size={18} />
+  }
 ];
 
 export default function FAQ() {
   const [openIdx, setOpenIdx] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="py-12 md:py-24 px-5 bg-white">
-      <div className="max-w-3xl mx-auto">
-        <div className="text-center mb-10 md:mb-16 reveal">
-          <span className="inline-block bg-blue-50 text-blue-700 text-xs font-bold px-4 py-1.5 rounded-full mb-4 tracking-widest uppercase">Support</span>
-          <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-3">Common questions.</h2>
-          <p className="text-slate-500 text-sm md:text-lg">Everything you need to know about SnapLoad.</p>
-        </div>
+    <section className="py-20 md:py-32 px-6 bg-white overflow-hidden">
+      <div className="max-w-4xl mx-auto">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16 md:mb-24"
+        >
+          <span className="inline-block bg-blue-50 text-blue-700 text-[10px] font-black px-5 py-2 rounded-full mb-6 tracking-[0.2em] uppercase">Knowledge Base</span>
+          <h1 className="text-4xl md:text-7xl font-black text-slate-900 tracking-tighter mb-6">Common Questions.</h1>
+          <p className="text-slate-400 text-base md:text-xl max-w-2xl mx-auto font-medium">Everything you need to know about the world's fastest video downloader.</p>
+        </motion.div>
 
-        <div className="space-y-3 md:space-y-4">
+        <div className="grid gap-4 md:gap-6">
           {FAQS.map((faq, i) => (
-            <div key={i} className="reveal" style={{ transitionDelay: `${i * 0.05}s` }}>
-              <div className="border border-slate-100 rounded-xl md:rounded-2xl overflow-hidden bg-white shadow-sm hover:border-blue-200 transition-all">
+            <motion.div 
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="group"
+            >
+              <div className={`border transition-all duration-300 rounded-[2rem] overflow-hidden ${openIdx === i ? 'border-blue-100 bg-blue-50/30 shadow-xl shadow-blue-50/50' : 'border-slate-100 bg-white hover:border-blue-200'}`}>
                 <button 
                   onClick={() => setOpenIdx(openIdx === i ? null : i)}
-                  className="w-full px-4 py-4 md:px-6 md:py-5 flex items-center justify-between text-left group"
+                  className="w-full px-6 py-6 md:px-10 md:py-8 flex items-center justify-between text-left"
                 >
-                  <span className={`font-bold text-sm md:text-base transition-colors ${openIdx === i ? 'text-blue-700' : 'text-slate-700 group-hover:text-blue-600'}`}>
-                    {faq.q}
-                  </span>
-                  <div className={`shrink-0 transition-all ${openIdx === i ? 'rotate-180 text-blue-700' : 'text-slate-400'}`}>
-                    {openIdx === i ? <Minus size={16} className="md:size-[18px]" /> : <Plus size={16} className="md:size-[18px]" />}
+                  <div className="flex items-center gap-4 md:gap-6">
+                    <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center transition-all ${openIdx === i ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-slate-50 text-slate-400'}`}>
+                      {faq.icon}
+                    </div>
+                    <span className={`font-black text-sm md:text-xl tracking-tight transition-colors ${openIdx === i ? 'text-blue-900' : 'text-slate-700 group-hover:text-blue-600'}`}>
+                      {faq.q}
+                    </span>
+                  </div>
+                  <div className={`shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all ${openIdx === i ? 'bg-blue-100 text-blue-600 rotate-180' : 'bg-slate-50 text-slate-300'}`}>
+                    {openIdx === i ? <Minus size={16} strokeWidth={3} /> : <Plus size={16} strokeWidth={3} />}
                   </div>
                 </button>
                 
-                <div className={`overflow-hidden transition-all duration-300 ${openIdx === i ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-                  <div className="px-4 pb-4 md:px-6 md:pb-6 text-slate-500 text-[13px] md:text-sm leading-relaxed border-t border-slate-50 pt-3 md:pt-4">
-                    {faq.a}
-                  </div>
-                </div>
+                <AnimatePresence mode="wait">
+                  {openIdx === i && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <div className="px-6 pb-8 md:px-28 md:pb-12 text-slate-500 text-sm md:text-lg font-medium leading-relaxed">
+                        {faq.a}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
+        
+        <motion.div 
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          className="mt-20 text-center p-10 bg-slate-50 rounded-[3rem] border border-dashed border-slate-200"
+        >
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-4">Still have questions?</p>
+          <button className="px-10 py-5 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-100 hover:scale-105 active:scale-95 transition-all">
+            Contact Support
+          </button>
+        </motion.div>
       </div>
     </section>
   );

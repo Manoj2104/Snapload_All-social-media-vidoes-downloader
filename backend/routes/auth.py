@@ -113,3 +113,13 @@ def purchase_credits(amount: int, current_user: models.User = Depends(get_curren
     db.add(tx)
     db.commit()
     return {"message": f"Added {credits_to_add} credits", "new_balance": current_user.credits}
+
+@router.get("/history")
+def get_history(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    txs = db.query(models.Transaction).filter(models.Transaction.user_id == current_user.id).order_by(models.Transaction.timestamp.desc()).limit(20).all()
+    return [{
+        "id": tx.id,
+        "amount": tx.amount,
+        "type": tx.type,
+        "timestamp": tx.timestamp
+    } for tx in txs]
