@@ -206,7 +206,7 @@ def get_common_opts(
                 "(Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 "
                 "(KHTML, like Gecko) "
-                "Chrome/124.0.0.0 "
+                "Chrome/147.0.0.0 "
                 "Safari/537.36"
             ),
 
@@ -234,25 +234,23 @@ def get_common_opts(
 
             "youtube": {
 
-                # MULTI-CLIENT BYPASS
+                # COMPREHENSIVE CLIENT BYPASS
                 "player_client": [
                     "ios",
                     "android",
                     "web",
+                    "web_creator",
                     "mweb",
-                    "tv"
+                    "tv",
+                    "tv_embedded"
                 ],
-
-                "skip": (
-                    ["hls", "dash"]
-                    if not is_download
-                    else []
-                ),
-
-                "youtube_include_dash_manifest": is_download,
-                "youtube_include_hls_manifest": is_download,
             }
         }
+
+        # Skip manifests only during metadata extraction for speed
+        if not is_download:
+            opts["youtube_skip_dash_manifest"] = True
+            opts["youtube_skip_hls_manifest"] = True
 
     # =====================================================
     # COOKIES
