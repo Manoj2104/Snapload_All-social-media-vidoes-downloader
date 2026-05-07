@@ -161,8 +161,10 @@ def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
         opts["impersonate"] = "chrome"
 
     if is_youtube and not is_download:
-        opts["youtube_skip_dash_manifest"] = True
-        opts["youtube_skip_hls_manifest"] = True
+        # We used to skip these for speed, but skipping them causes "format not available"
+        # errors for live streams and certain high-quality videos during analysis.
+        opts["youtube_skip_dash_manifest"] = False
+        opts["youtube_skip_hls_manifest"] = False
 
     if COOKIE_FILE and os.path.isfile(COOKIE_FILE):
         opts["cookiefile"] = COOKIE_FILE
