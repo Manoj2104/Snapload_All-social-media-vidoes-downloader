@@ -277,157 +277,66 @@ def _format_attempts(format_type: str, quality: str) -> list[str]:
 
 
 def download_video_task(job_id: str, url: str, format_type: str, quality: str) -> None:
+    """Task to download video or audio with optimized format selection and merge logic."""
     cleanup_downloads()
 
     global COOKIE_FILE
     if not COOKIE_FILE or not os.path.isfile(COOKIE_FILE):
         COOKIE_FILE = init_cookies()
 
-    # =====================================================
-    # OUTPUT
-    # =====================================================
+    # Determine file extension
+    ext = "mp3" if format_type == "audio" else "mp4"
+    output_template = str(DOWNLOAD_DIR / f"{job_id}.%(ext)s")
 
-    ext = (
-        "mp3"
-        if format_type == "audio"
-        else "mp4"
-    )
+    # Detect platform
+    is_youtube = is_youtube_url(url)
+    q = str(quality).lower().replace("p", "").strip()
 
-    output_template = os.path.join(
-
-        DOWNLOAD_DIR,
-
-        f"{job_id}.%(ext)s"
-    )
-
-    # =====================================================
-    # DETECT YOUTUBE
-    # =====================================================
-
-    is_youtube = any(
-
-        x in url.lower()
-
-        for x in [
-
-            "youtube.com",
-
-            "youtu.be"
-        ]
-    )
-
-    # =====================================================
-    # FINAL CLOUD SAFE FORMAT FIX
-    # =====================================================
-
-    print(
-        f"[download request] "
-        f"type={format_type} "
-        f"quality={quality}"
-    )
-
-    # Clean quality string (e.g., "1080p" -> "1080")
-    q = str(quality).lower().replace("p", "")
-
+    # Select best format (Codec-agnostic to handle VP9/AV1 at 1080p)
     if format_type == "audio":
-
-        # safest audio
-        fmt = "140/251/bestaudio/best"
-
+        fmt = "ba[ext=m4a]/ba/b"
     else:
-
-        # ONLY PROGRESSIVE STREAMS FOR RENDER STABILITY
-        # 22 = 720p mp4 progressive
-        # 18 = 360p mp4 progressive
-
         if q == "1080":
-
             fmt = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
-
         elif q == "720":
-
             fmt = "22/bestvideo[height<=720]+bestaudio/best[height<=720]/best"
-
         elif q in ["480", "360"]:
-
             fmt = "18/best[height<=480]/best"
-
         else:
-
             fmt = "bestvideo+bestaudio/best"
 
-    print(
-        f"[download] format => {fmt}"
-    )
+    print(f"[download request] job={job_id} type={format_type} quality={quality} format={fmt}")
 
-    last_error = None
-
-    # =====================================================
-    # DOWNLOAD
-    # =====================================================
-
+    last_error = "Unknown error"
     try:
-
-        opts = get_common_opts(
-
-            is_youtube,
-
-            is_download=True
-        )
-
+        opts = get_common_opts(is_youtube, is_download=True)
         opts.update({
-
             "format": fmt,
-
-            "outtmpl":
-            output_template,
-
-            "progress_hooks": [
-
-                progress_hook(job_id)
-            ],
-
+            "outtmpl": output_template,
+            "progress_hooks": [progress_hook(job_id)],
             "nopart": True,
-
             "continuedl": True,
-
             "overwrites": True,
-
             "noplaylist": True,
-
             "extract_flat": False,
-
-            "merge_output_format": (
-
-                "mp4"
-
-                if format_type != "audio"
-
-                else None
-            ),
+            "merge_output_format": "mp4" if format_type != "audio" else None,
         })
 
-        # =================================================
-        # AUDIO POST PROCESS
-        # =================================================
-
         if format_type == "audio":
-            opts["postprocessors"] = [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "192",
-                }
-            ]
+            opts["postprocessors"] = [{
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            }]
         else:
             opts["merge_output_format"] = "mp4"
 
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([url])
 
-        final_file = find_downloaded_file(job_id, ext)
+        final_file = find_downloaded_file(job_id, f".{ext}")
         if not final_file:
-            raise Exception("Downloaded file not found")
+            raise Exception("Downloaded file not found after completion")
 
         redis_client.hset(
             f"job:{job_id}",
@@ -439,11 +348,12 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
         )
         print(f"[download completed] {final_file}")
         return
+
     except Exception as exc:
         last_error = clean_error(exc)
-        print(f"[download retry] {last_error}")
+        print(f"[download error] {last_error}")
 
-    print(f"[download failed] {last_error}")
+    # Fallback if download failed
     redis_client.hset(
         f"job:{job_id}",
         mapping={"status": "failed", "error": last_error},
