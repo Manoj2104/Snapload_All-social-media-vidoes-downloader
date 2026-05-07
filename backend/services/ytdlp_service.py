@@ -204,7 +204,12 @@ def get_common_opts(
 
             "Accept-Language":
             "en-US,en;q=0.9",
+
+            "Referer": "https://www.youtube.com/",
         },
+
+        # IMPERSONATION
+        "impersonate": "chrome",
     }
 
     # =====================================================
@@ -217,16 +222,23 @@ def get_common_opts(
 
             "youtube": {
 
-                # ONLY ANDROID
+                # MULTI-CLIENT BYPASS
                 "player_client": [
-                    "android"
+                    "ios",
+                    "android",
+                    "web",
+                    "mweb",
+                    "tv"
                 ],
 
                 "skip": (
                     ["hls", "dash"]
                     if not is_download
                     else []
-                )
+                ),
+
+                "youtube_include_dash_manifest": is_download,
+                "youtube_include_hls_manifest": is_download,
             }
         }
 
@@ -264,7 +276,7 @@ def get_metadata_opts(
         is_download=False
     )
 
-    opts["extract_flat"] = True
+    opts["extract_flat"] = "in_playlist"
 
     opts["skip_download"] = True
 
