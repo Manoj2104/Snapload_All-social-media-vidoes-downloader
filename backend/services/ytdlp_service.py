@@ -186,13 +186,13 @@ def get_common_opts(
 
         # "force_ipv4": True,
 
-        "socket_timeout": 60,
+        "socket_timeout": 120,
 
-        "retries": 10,
+        "retries": 20,
 
-        "fragment_retries": 10,
+        "fragment_retries": 20,
 
-        "extractor_retries": 5,
+        "extractor_retries": 10,
 
         "sleep_interval": 1,
 
@@ -236,11 +236,11 @@ def get_common_opts(
 
             "youtube": {
 
-                # COMPREHENSIVE CLIENT BYPASS
+                # BYPASS FOR ANALYSIS ONLY
                 "player_client": (
-                    ["web", "mweb", "ios", "android", "tv"]
+                    ["web", "ios", "android"]
                     if is_download
-                    else ["ios", "android", "web", "mweb", "tv"]
+                    else ["ios", "android", "web", "mweb"]
                 ),
             }
         }
@@ -622,17 +622,21 @@ def download_video_task(
         # 22 = 720p mp4 progressive
         # 18 = 360p mp4 progressive
 
-        if q in ["1080", "720"]:
+        if q == "1080":
 
-            fmt = "22/18/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+            fmt = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/22/18/best[height<=1080][ext=mp4]/best"
+
+        elif q == "720":
+
+            fmt = "22/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/18/best[height<=720][ext=mp4]/best"
 
         elif q in ["480", "360"]:
 
-            fmt = "18/best[ext=mp4]/best"
+            fmt = "18/best[height<=480][ext=mp4]/best"
 
         else:
 
-            fmt = "22/18/best[ext=mp4]/best"
+            fmt = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/22/18/best"
 
     print(
         f"[download] format => {fmt}"
