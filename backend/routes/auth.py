@@ -112,7 +112,19 @@ def purchase_credits(amount: int, current_user: models.User = Depends(get_curren
     tx = models.Transaction(user_id=current_user.id, amount=credits_to_add, type="purchase")
     db.add(tx)
     db.commit()
-    return {"message": f"Added {credits_to_add} credits", "new_balance": current_user.credits}
+    db.refresh(tx)
+    db.refresh(current_user)
+    
+    return {
+        "message": f"Added {credits_to_add} credits", 
+        "new_balance": current_user.credits,
+        "transaction": {
+            "id": tx.id,
+            "amount": tx.amount,
+            "type": tx.type,
+            "timestamp": tx.timestamp
+        }
+    }
 
 @router.get("/history")
 def get_history(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):

@@ -14,7 +14,7 @@ import Link from 'next/link';
 import { API_BASE } from '@/lib/api';
 
 export default function WalletPage() {
-  const { user, token, loading } = useAuth();
+  const { user, token, loading, refreshUser } = useAuth();
   const router = useRouter();
   const [history, setHistory] = useState<any[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -29,23 +29,35 @@ export default function WalletPage() {
   useEffect(() => {
     if (token) {
       fetchHistory();
+      
+      // Auto-refresh every 30 seconds for true "Real-time" feel
+      const interval = setInterval(() => {
+        fetchHistory(true); // silent refresh
+      }, 30000);
+      
+      return () => clearInterval(interval);
     }
   }, [token]);
 
-  const fetchHistory = async () => {
-    setIsRefreshing(true);
+  const fetchHistory = async (silent = false) => {
+    if (!silent) setIsRefreshing(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/history`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
+      // Sync both history and user balance
+      const [historyRes] = await Promise.all([
+        fetch(`${API_BASE}/auth/history`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        refreshUser() // Update the global balance in AuthContext
+      ]);
+
+      if (historyRes.ok) {
+        const data = await historyRes.json();
         setHistory(data);
       }
     } catch (err) {
       console.error('Failed to fetch history', err);
     } finally {
-      setIsRefreshing(false);
+      if (!silent) setIsRefreshing(false);
     }
   };
 
@@ -155,9 +167,14 @@ export default function WalletPage() {
                     </div>
                   </div>
 
-                  <div className="flex-1 p-4 md:p-6">
+                  <div className="flex-1 p-4 md:p-6 relative">
                     <AnimatePresence mode="wait">
-                      {filteredHistory.length > 0 ? (
+                      {isRefreshing && history.length === 0 ? (
+                        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-32">
+                           <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6" />
+                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Syncing Finance Data...</p>
+                        </motion.div>
+                      ) : filteredHistory.length > 0 ? (
                         <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
                            {filteredHistory.map((tx, i) => (
                              <motion.div 
@@ -194,12 +211,19 @@ export default function WalletPage() {
                            ))}
                         </motion.div>
                       ) : (
-                        <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-32 text-center">
-                           <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center text-slate-200 mb-8">
+                        <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-32 text-center px-6">
+                           <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center text-slate-200 mb-8 relative">
                              <CreditCard size={48} strokeWidth={1.5} />
+                             <motion.div animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0, 0.3] }} transition={{ duration: 2, repeat: Infinity }} className="absolute inset-0 bg-blue-100 rounded-[2.5rem]" />
                            </div>
-                           <h4 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tight">Empty Wallet</h4>
-                           <p className="text-slate-400 font-medium max-w-xs uppercase text-[10px] tracking-widest">No real-time transactions recorded yet.</p>
+                           <h4 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tight">Syncing History...</h4>
+                           <p className="text-slate-400 font-medium max-w-xs uppercase text-[10px] tracking-widest mb-8">If your history isn't showing, try a manual refresh below.</p>
+                           <button 
+                             onClick={() => fetchHistory()} 
+                             className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-black transition-all shadow-xl"
+                           >
+                             Force Cloud Sync
+                           </button>
                         </motion.div>
                       )}
                     </AnimatePresence>

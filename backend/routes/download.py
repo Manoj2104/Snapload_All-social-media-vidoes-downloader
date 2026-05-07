@@ -51,6 +51,8 @@ async def start_download(request: DownloadRequest, user: Optional[models.User] =
         tx = models.Transaction(user_id=user.id, amount=-50, type="download")
         db.add(tx)
         db.commit()
+        db.refresh(tx)
+        db.refresh(user)
 
     try:
         job_id = str(uuid.uuid4())
