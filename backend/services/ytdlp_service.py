@@ -439,11 +439,9 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
         )
         print(f"[download completed] {final_file}")
         return
-        except Exception as exc:
-            last_error = clean_error(exc)
-            print(f"[download retry] {last_error}")
-            if "Requested format is not available" not in last_error:
-                break
+    except Exception as exc:
+        last_error = clean_error(exc)
+        print(f"[download retry] {last_error}")
 
     print(f"[download failed] {last_error}")
     redis_client.hset(
