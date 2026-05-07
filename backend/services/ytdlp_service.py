@@ -158,9 +158,19 @@ def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
     if HAS_IMPERSONATE:
         opts["impersonate"] = "chrome"
 
-    if is_youtube and not is_download:
-        opts["youtube_skip_dash_manifest"] = True
-        opts["youtube_skip_hls_manifest"] = True
+    if is_youtube:
+        # Render/YouTube can expose different formats per client. Query multiple
+        # clients so videos that fail on the default web client can still expose
+        # progressive MP4 or mobile streams.
+        opts["extractor_args"] = {
+            "youtube": {
+                "player_client": ["web", "mweb", "ios", "android"],
+            }
+        }
+
+        if not is_download:
+            opts["youtube_skip_dash_manifest"] = True
+            opts["youtube_skip_hls_manifest"] = True
 
     if COOKIE_FILE and os.path.isfile(COOKIE_FILE):
         opts["cookiefile"] = COOKIE_FILE
@@ -274,12 +284,13 @@ def _sort_score(fmt: dict) -> tuple[int, int, int]:
     return height, tbr, _format_filesize(fmt)
 
 
-def _dedupe_formats(formats: list[str]) -> list[str]:
+def _dedupe_formats(formats: list[str | None]) -> list[str | None]:
     seen = set()
     result = []
     for fmt in formats:
-        if fmt and fmt not in seen:
-            seen.add(fmt)
+        marker = "__DEFAULT__" if fmt is None else fmt
+        if marker not in seen:
+            seen.add(marker)
             result.append(fmt)
     return result
 
@@ -347,13 +358,13 @@ def _pick_format_from_info(info: dict, format_type: str, quality: str) -> str | 
     return None
 
 
-def _format_attempts(format_type: str, quality: str, info: dict | None = None) -> list[str]:
+def _format_attempts(format_type: str, quality: str, info: dict | None = None) -> list[str | None]:
     attempts = []
     if info:
         attempts.append(_pick_format_from_info(info, format_type, quality))
 
     if format_type == "audio":
-        attempts.extend(["ba[ext=m4a]/ba/b", "140/251/bestaudio/best", "bestaudio/best", "best"])
+        attempts.extend(["ba[ext=m4a]/ba/b", "140/251/bestaudio/best", "bestaudio/best", "best", None])
         return _dedupe_formats(attempts)
 
     height = _quality_height(quality)
@@ -368,9 +379,10 @@ def _format_attempts(format_type: str, quality: str, info: dict | None = None) -
             "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best[ext=mp4]",
             "bv*+ba/b",
             "best",
+            None,
         ])
     else:
-        attempts.extend(["22/18", "18", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]", "bv*+ba/b", "best"])
+        attempts.extend(["22/18", "18", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]", "bv*+ba/b", "best", None])
 
     return _dedupe_formats(attempts)
 
@@ -399,12 +411,11 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
 
     last_error = "Download failed"
     for fmt in _format_attempts(format_type, quality, info):
-        print(f"[download] format => {fmt}")
+        print(f"[download] format => {fmt or 'yt-dlp default'}")
         try:
             opts = get_common_opts(youtube, is_download=True)
             opts.update(
                 {
-                    "format": fmt,
                     "outtmpl": output_template,
                     "progress_hooks": [progress_hook(job_id)],
                     "nopart": True,
@@ -414,6 +425,8 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
                     "extract_flat": False,
                 }
             )
+            if fmt:
+                opts["format"] = fmt
 
             if format_type == "audio":
                 opts["postprocessors"] = [
