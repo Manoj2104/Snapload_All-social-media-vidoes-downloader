@@ -612,34 +612,31 @@ def download_video_task(
         f"quality={quality}"
     )
 
+    # Clean quality string (e.g., "1080p" -> "1080")
+    q = str(quality).lower().replace("p", "")
+
     if format_type == "audio":
 
         # safest audio
-        fmt = "140/251/bestaudio"
+        fmt = "140/251/bestaudio/best"
 
     else:
 
-        # ONLY PROGRESSIVE STREAMS
+        # ONLY PROGRESSIVE STREAMS FOR RENDER STABILITY
+        # 22 = 720p mp4 progressive
+        # 18 = 360p mp4 progressive
 
-        if quality == "1080":
+        if q in ["1080", "720"]:
 
-            fmt = "22/18/best"
+            fmt = "22/18/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
 
-        elif quality == "720":
+        elif q in ["480", "360"]:
 
-            fmt = "22/18/best"
-
-        elif quality == "480":
-
-            fmt = "18/best"
-
-        elif quality == "360":
-
-            fmt = "18/best"
+            fmt = "18/best[ext=mp4]/best"
 
         else:
 
-            fmt = "18/best"
+            fmt = "22/18/best[ext=mp4]/best"
 
     print(
         f"[download] format => {fmt}"
