@@ -8,7 +8,7 @@ const WORDS = ['YouTube','Instagram','TikTok','Twitter','Facebook','Vimeo'];
 const QUALITIES = ['4K','1080p','720p','480p','MP3'] as const;
 type Quality = typeof QUALITIES[number];
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
+import { API_BASE } from '@/lib/api';
 
 interface VideoMetadata {
   title: string;

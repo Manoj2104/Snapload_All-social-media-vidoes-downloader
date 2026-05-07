@@ -1,8 +1,9 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { API_BASE } from '@/lib/api';
 
 interface User {
-  email: str;
+  email: string;
   credits: number;
   last_reset: string;
 }
@@ -22,8 +23,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
 
   useEffect(() => {
     const savedToken = localStorage.getItem('token');

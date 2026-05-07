@@ -13,12 +13,12 @@ const PACKAGES = [
   { name: 'Ultimate', price: 80, credits: 3000, downloads: 60, icon: <Crown className="text-amber-500" /> },
 ];
 
+import { API_BASE } from '@/lib/api';
+
 export default function PricingPage() {
   const { user, token, refreshUser } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
   const [buying, setBuying] = useState<number | null>(null);
-
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
 
   const handlePurchase = async (price: number) => {
     if (!user) {

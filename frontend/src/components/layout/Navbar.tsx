@@ -84,70 +84,84 @@ export default function Navbar() {
       <AnimatePresence>
         {open && (
           <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed inset-0 z-40 bg-white/98 backdrop-blur-xl pt-24 pb-10 flex flex-col items-center overflow-y-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-blue-950/40 backdrop-blur-md pt-20 pb-10 flex items-center justify-center px-6"
           >
-            <div className="w-full max-w-sm px-6 flex-1 flex flex-col">
-              <div className="space-y-2 mb-10">
-                {['Pricing', 'FAQ', 'About'].map(l => (
-                  <Link 
-                    key={l} 
-                    href={l === 'About' ? '/about' : l === 'FAQ' ? '/faq' : '/pricing'}
-                    onClick={() => setOpen(false)}
-                    className="block py-4 text-2xl font-black text-blue-950 border-b border-slate-50 transition-all active:pl-4"
-                  >
-                    {l}
-                  </Link>
-                ))}
-                {user && (
-                  <Link 
-                    href="/settings" 
-                    onClick={() => setOpen(false)} 
-                    className="block py-4 text-2xl font-black text-blue-950 border-b border-slate-50 transition-all active:pl-4"
-                  >
-                    Profile Settings
-                  </Link>
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-[320px] bg-white rounded-[2.5rem] shadow-2xl border border-blue-50 overflow-hidden flex flex-col"
+            >
+              <div className="p-8 pb-4 flex flex-col items-center">
+                <div className="w-12 h-12 bg-blue-700 rounded-2xl flex items-center justify-center text-white mb-6 shadow-lg shadow-blue-200">
+                  <Download size={24} strokeWidth={3} />
+                </div>
+                
+                <div className="w-full space-y-1 mb-8">
+                  {[
+                    { label: 'Pricing', href: '/pricing', icon: <CreditCard size={16} /> },
+                    { label: 'FAQ', href: '/faq', icon: <X size={16} /> }, // Placeholder icon or find better
+                    { label: 'About', href: '/about', icon: <UserIcon size={16} /> }
+                  ].map(l => (
+                    <Link 
+                      key={l.label} 
+                      href={l.href}
+                      onClick={() => setOpen(false)}
+                      className="flex items-center justify-center gap-3 py-3 text-sm font-black text-blue-950 hover:bg-blue-50 rounded-xl transition-all"
+                    >
+                      <span className="text-blue-400">{l.icon}</span>
+                      {l.label}
+                    </Link>
+                  ))}
+                  {user && (
+                    <Link 
+                      href="/settings" 
+                      onClick={() => setOpen(false)} 
+                      className="flex items-center justify-center gap-3 py-3 text-sm font-black text-blue-950 hover:bg-blue-50 rounded-xl transition-all"
+                    >
+                      <span className="text-blue-400"><UserIcon size={16} /></span>
+                      Settings
+                    </Link>
+                  )}
+                </div>
+
+                {user ? (
+                  <div className="w-full space-y-4 pt-4 border-t border-slate-50">
+                    <div className="bg-slate-50 p-4 rounded-2xl flex flex-col items-center gap-1">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Balance</p>
+                      <p className="text-lg font-black text-blue-700">{user.credits} CR</p>
+                    </div>
+                    <button 
+                      onClick={() => { logout(); setOpen(false); }}
+                      className="w-full py-3 rounded-xl font-black text-red-500 text-xs hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+                    >
+                      <LogOut size={14} /> Logout
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-full space-y-3 pt-2">
+                    <button 
+                      onClick={() => openAuth('login')} 
+                      className="w-full py-4 text-sm font-black text-blue-700 bg-blue-50 rounded-2xl transition-all active:scale-95 border border-blue-100"
+                    >
+                      Login
+                    </button>
+                    <button 
+                      onClick={() => openAuth('signup')} 
+                      className="w-full py-4 text-sm font-black text-white bg-blue-700 rounded-2xl transition-all active:scale-95 shadow-xl shadow-blue-200"
+                    >
+                      Create Account
+                    </button>
+                  </div>
                 )}
               </div>
-
-              {user ? (
-                <div className="mt-auto space-y-6">
-                  <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex items-center justify-between shadow-sm">
-                    <div>
-                      <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Your Balance</p>
-                      <p className="text-2xl font-black text-blue-700">{user.credits} Credits</p>
-                    </div>
-                    <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                      <CreditCard size={24} />
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => { logout(); setOpen(false); }}
-                    className="w-full py-4 rounded-2xl font-black text-red-500 bg-red-50 hover:bg-red-100 transition-all flex items-center justify-center gap-2"
-                  >
-                    <LogOut size={20} /> Logout Account
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-auto space-y-4 pt-10">
-                  <p className="text-center text-sm font-bold text-slate-400 mb-6 uppercase tracking-[0.2em]">Join the Community</p>
-                  <button 
-                    onClick={() => openAuth('login')} 
-                    className="w-full py-5 text-xl font-black text-blue-700 bg-blue-50 rounded-[1.8rem] transition-all active:scale-95 border border-blue-100 shadow-sm"
-                  >
-                    Login
-                  </button>
-                  <button 
-                    onClick={() => openAuth('signup')} 
-                    className="w-full py-5 text-xl font-black text-white bg-blue-700 rounded-[1.8rem] transition-all active:scale-95 shadow-xl shadow-blue-200"
-                  >
-                    Create Account
-                  </button>
-                </div>
-              )}
-            </div>
+              <div className="bg-slate-50 py-4 text-center">
+                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">SnapLoad v1.0</p>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

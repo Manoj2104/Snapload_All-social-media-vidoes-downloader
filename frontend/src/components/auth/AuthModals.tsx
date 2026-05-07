@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
+import { API_BASE } from '@/lib/api';
 
 interface AuthModalsProps {
   isOpen: boolean;
@@ -18,7 +19,6 @@ export default function AuthModals({ isOpen, onClose, initialMode = 'login' }: A
   const [loading, setLoading] = useState(false);
   
   const { login: setAuthToken } = useAuth();
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
