@@ -381,7 +381,31 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
         last_error = clean_error(exc)
         print(f"[download error] {last_error}")
 
-    # Fallback if download failed
+        # SMART FALLBACK: If specific format fails, try "best"
+        if "Requested format is not available" in last_error or "format is not available" in last_error:
+            print("[download fallback] Retrying with 'best' format...")
+            try:
+                opts["format"] = "best"
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    ydl.download([url])
+
+                final_file = find_downloaded_file(job_id, f".{ext}")
+                if final_file:
+                    redis_client.hset(
+                        f"job:{job_id}",
+                        mapping={
+                            "status": "completed",
+                            "progress": "100",
+                            "downloadUrl": final_file,
+                        },
+                    )
+                    print(f"[download completed via fallback] {final_file}")
+                    return
+            except Exception as fallback_exc:
+                last_error = clean_error(fallback_exc)
+                print(f"[download fallback failed] {last_error}")
+
+    # Final Failure
     redis_client.hset(
         f"job:{job_id}",
         mapping={"status": "failed", "error": last_error},
