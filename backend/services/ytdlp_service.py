@@ -178,11 +178,13 @@ def get_common_opts(
 
         "nocheckcertificate": True,
 
+        "cached_player_responses": False,
+
         "ignoreerrors": False,
 
         "geo_bypass": True,
 
-        "force_ipv4": True,
+        # "force_ipv4": True,
 
         "socket_timeout": 60,
 
@@ -235,15 +237,11 @@ def get_common_opts(
             "youtube": {
 
                 # COMPREHENSIVE CLIENT BYPASS
-                "player_client": [
-                    "ios",
-                    "android",
-                    "web",
-                    "web_creator",
-                    "mweb",
-                    "tv",
-                    "tv_embedded"
-                ],
+                "player_client": (
+                    ["web", "mweb", "ios", "android", "tv"]
+                    if is_download
+                    else ["ios", "android", "web", "mweb", "tv"]
+                ),
             }
         }
 
