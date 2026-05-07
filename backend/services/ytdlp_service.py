@@ -160,11 +160,6 @@ def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
     if HAS_IMPERSONATE:
         opts["impersonate"] = "chrome"
 
-    if is_youtube and not is_download:
-        # We used to skip these for speed, but skipping them causes "format not available"
-        # errors for live streams and certain high-quality videos during analysis.
-        opts["youtube_skip_dash_manifest"] = False
-        opts["youtube_skip_hls_manifest"] = False
 
     if COOKIE_FILE and os.path.isfile(COOKIE_FILE):
         opts["cookiefile"] = COOKIE_FILE
@@ -176,13 +171,18 @@ def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
         opts["extractor_args"] = {
             "youtube": {
                 # MULTI-CLIENT BYPASS (Critical for Render IPs)
-                "player_client": (
-                    ["web", "web_creator", "mweb", "ios", "android", "tv", "tv_embedded"]
-                    if is_download
-                    else ["ios", "android", "web", "web_creator", "mweb", "tv", "tv_embedded"]
-                ),
+                # We prioritize mobile clients (ios, android) because they are 
+                # significantly less likely to be blocked than the "web" client.
+                "player_client": ["ios", "android", "web", "web_creator", "mweb", "tv", "tv_embedded"],
             }
         }
+
+    if is_youtube:
+        # Enable manifests for both analysis and download for maximum reliability
+        opts["youtube_skip_dash_manifest"] = False
+        opts["youtube_skip_hls_manifest"] = False
+        opts["youtube_include_dash_manifest"] = True
+        opts["youtube_include_hls_manifest"] = True
 
     return opts
 
