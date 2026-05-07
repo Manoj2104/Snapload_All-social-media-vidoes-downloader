@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Download, Menu, X, User as UserIcon, LogOut, CreditCard } from 'lucide-react';
+import { Download, Menu, X, User as UserIcon, LogOut, CreditCard, Play } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import AuthModals from '@/components/auth/AuthModals';
 import { motion, AnimatePresence } from 'framer-motion';
