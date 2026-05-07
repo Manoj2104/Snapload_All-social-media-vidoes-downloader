@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Download, Menu, X, User as UserIcon, LogOut, CreditCard, Play } from 'lucide-react';
+import { Download, Menu, X, User as UserIcon, LogOut, CreditCard, Play, Shield, Zap } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import AuthModals from '@/components/auth/AuthModals';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -83,93 +83,97 @@ export default function Navbar() {
       </nav>
       <AnimatePresence>
         {open && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-blue-950/40 backdrop-blur-md pt-20 pb-10 flex items-center justify-center px-6"
-          >
+          <>
+            {/* Backdrop */}
             <motion.div 
-              initial={{ scale: 0.9, y: 30, rotateX: 15 }}
-              animate={{ scale: 1, y: 0, rotateX: 0 }}
-              exit={{ scale: 0.9, y: 30, rotateX: 15 }}
-              className="w-full max-w-[340px] bg-white/95 backdrop-blur-2xl rounded-[3rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] border border-white/50 overflow-hidden flex flex-col"
-            >
-              <div className="p-8 pb-6 flex flex-col items-center relative">
-                <button onClick={() => setOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full text-slate-400 active:scale-90 transition-transform">
-                  <X size={16} />
-                </button>
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setOpen(false)}
+              className="fixed inset-0 z-[90] bg-white/40 backdrop-blur-sm"
+            />
+            
+            {/* Card Content */}
+            <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center px-6">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                className="w-full max-w-[320px] bg-white/95 backdrop-blur-3xl rounded-[2.5rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] border border-white overflow-hidden pointer-events-auto flex flex-col"
+              >
+                <div className="p-6 flex flex-col items-center relative">
+                  <button onClick={() => setOpen(false)} className="absolute top-5 right-5 p-1.5 bg-slate-50 rounded-full text-slate-300 active:scale-90 transition-transform">
+                    <X size={16} />
+                  </button>
 
-                <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl flex items-center justify-center text-white mb-8 shadow-xl shadow-blue-200">
-                  <Download size={28} strokeWidth={3} />
-                </div>
-                
-                <div className="w-full space-y-2 mb-10">
-                  {[
-                    { label: 'Pricing', href: '/pricing', icon: <CreditCard size={18} /> },
-                    { label: 'FAQ', href: '/faq', icon: <Play size={18} /> },
-                    { label: 'About', href: '/about', icon: <UserIcon size={18} /> }
-                  ].map(l => (
-                    <Link 
-                      key={l.label} 
-                      href={l.href}
-                      onClick={() => setOpen(false)}
-                      className="flex items-center gap-4 p-4 text-sm font-black text-blue-950 hover:bg-blue-50/50 active:bg-blue-50 rounded-2xl transition-all group"
-                    >
-                      <span className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">{l.icon}</span>
-                      {l.label}
-                    </Link>
-                  ))}
-                  {user && (
-                    <Link 
-                      href="/settings" 
-                      onClick={() => setOpen(false)} 
-                      className="flex items-center gap-4 p-4 text-sm font-black text-blue-950 hover:bg-blue-50/50 active:bg-blue-50 rounded-2xl transition-all group"
-                    >
-                      <span className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform"><UserIcon size={18} /></span>
-                      Settings
-                    </Link>
+                  <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white mb-5 shadow-lg shadow-blue-100">
+                    <Download size={22} strokeWidth={3} />
+                  </div>
+                  
+                  <div className="w-full grid grid-cols-2 gap-2 mb-5">
+                    {[
+                      { label: 'Pricing', href: '/pricing', icon: <CreditCard size={18} />, color: 'bg-blue-50', iconColor: 'text-blue-600' },
+                      { label: 'FAQ', href: '/faq', icon: <Play size={18} />, color: 'bg-indigo-50', iconColor: 'text-indigo-600' },
+                      { label: 'About', href: '/about', icon: <UserIcon size={18} />, color: 'bg-emerald-50', iconColor: 'text-emerald-600' },
+                      { label: 'Settings', href: '/settings', icon: <Shield size={18} />, color: 'bg-amber-50', iconColor: 'text-amber-600' }
+                    ].map(l => (
+                      <Link 
+                        key={l.label} 
+                        href={l.href}
+                        onClick={() => setOpen(false)}
+                        className="flex flex-col items-center gap-2 p-4 bg-slate-50/50 hover:bg-white hover:shadow-sm rounded-[1.8rem] transition-all group border border-slate-100/50"
+                      >
+                        <div className={`w-10 h-10 ${l.color} ${l.iconColor} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                          {l.icon}
+                        </div>
+                        <span className="text-[9px] font-black text-blue-900 uppercase tracking-widest">{l.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+
+                  {user ? (
+                    <div className="w-full space-y-3 pt-5 border-t border-slate-50">
+                      <div className="bg-blue-50/50 p-5 rounded-[1.8rem] flex flex-col gap-3 border border-blue-100/50">
+                        <div className="flex justify-between items-center">
+                          <p className="text-[8px] font-black text-blue-400 uppercase tracking-[0.2em]">Balance</p>
+                          <Zap size={12} className="text-blue-600" fill="currentColor" />
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <p className="text-3xl font-black text-blue-700 tracking-tighter">{user.credits}</p>
+                          <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest">CR</p>
+                        </div>
+                        <Link href="/pricing" onClick={() => setOpen(false)} className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-center text-[9px] font-black uppercase tracking-widest shadow-lg shadow-blue-200 active:scale-95 transition-all">
+                           Top Up Now
+                        </Link>
+                      </div>
+                      
+                      <button 
+                        onClick={() => { logout(); setOpen(false); }}
+                        className="w-full py-3 rounded-xl font-black text-red-500 text-[9px] uppercase tracking-[0.3em] hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+                      >
+                        <LogOut size={12} /> Logout Account
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-full space-y-2 pt-4 border-t border-slate-100">
+                      <button 
+                        onClick={() => openAuth('login')} 
+                        className="w-full py-3.5 text-xs font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all active:scale-95 border border-blue-100"
+                      >
+                        Login
+                      </button>
+                      <button 
+                        onClick={() => openAuth('signup')} 
+                        className="w-full py-3.5 text-xs font-black text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all active:scale-95 shadow-lg shadow-blue-200"
+                      >
+                        Sign Up
+                      </button>
+                    </div>
                   )}
                 </div>
-
-                {user ? (
-                  <div className="w-full space-y-4 pt-6 border-t border-slate-100">
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-2xl flex items-center justify-between shadow-inner">
-                      <div>
-                        <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Balance</p>
-                        <p className="text-xl font-black text-blue-700">{user.credits} CR</p>
-                      </div>
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm"><CreditCard size={20} /></div>
-                    </div>
-                    <button 
-                      onClick={() => { logout(); setOpen(false); }}
-                      className="w-full py-4 rounded-2xl font-black text-red-500 text-xs hover:bg-red-50 transition-all flex items-center justify-center gap-2"
-                    >
-                      <LogOut size={16} /> Logout Account
-                    </button>
-                  </div>
-                ) : (
-                  <div className="w-full space-y-3">
-                    <button 
-                      onClick={() => openAuth('login')} 
-                      className="w-full py-5 text-sm font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-[1.5rem] transition-all active:scale-95 border border-blue-100"
-                    >
-                      Login
-                    </button>
-                    <button 
-                      onClick={() => openAuth('signup')} 
-                      className="w-full py-5 text-sm font-black text-white bg-blue-700 hover:bg-blue-800 rounded-[1.5rem] transition-all active:scale-95 shadow-xl shadow-blue-200"
-                    >
-                      Create Account
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="bg-slate-50/50 py-5 text-center border-t border-slate-50">
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">SnapLoad Premium v1.0</p>
-              </div>
-            </motion.div>
-          </motion.div>
+              </motion.div>
+            </div>
+          </>
         )}
       </AnimatePresence>
       <AuthModals isOpen={authOpen} onClose={() => setAuthOpen(false)} initialMode={authMode} />
