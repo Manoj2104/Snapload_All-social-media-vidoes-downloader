@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Iterable
 
@@ -26,20 +27,40 @@ COOKIE_FILE_NAME = "cookies.txt"
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 PROXY = os.environ.get("YT_PROXY", "").strip()
+LEGACY_BROWSER_COOKIE_ENV_VARS = (
+    "YT_COOKIES_BROWSER",
+    "YT_DLP_COOKIES_FROM_BROWSER",
+    "COOKIES_FROM_BROWSER",
+)
 
-HAS_IMPERSONATE = False
-try:
-    from yt_dlp.utils.impersonate import IMPERSONATE_TARGETS as _IMPERSONATE_TARGETS
-
-    HAS_IMPERSONATE = bool(_IMPERSONATE_TARGETS)
-except ImportError:
-    HAS_IMPERSONATE = False
+# yt-dlp impersonation support is optional. Detect it without wrapping imports in
+# try/except so deployment logs stay clean and style rules are respected.
+HAS_IMPERSONATE = find_spec("yt_dlp.utils.impersonate") is not None
 
 
 def clean_error(value: object) -> str:
     """Remove ANSI colour codes from yt-dlp errors before returning them to UI."""
 
     return ANSI_RE.sub("", str(value)).strip()
+
+
+def friendly_error(value: object) -> str:
+    """Return a user-actionable error message for common deployment mistakes."""
+
+    err = clean_error(value)
+    lowered = err.lower()
+    browser_names = ("edge", "chrome", "chromium")
+    if "cookies database" in lowered and any(
+        browser in lowered for browser in browser_names
+    ):
+        return (
+            "Server misconfiguration: browser cookie extraction is enabled, but "
+            "Render/Docker containers do not have Edge/Chrome profile databases. "
+            "Use an exported Netscape cookies.txt instead: set YT_COOKIES_CONTENT "
+            "or mount /etc/secrets/cookies.txt, then redeploy. Original error: "
+            f"{err}"
+        )
+    return err
 
 
 def is_youtube_url(url: str) -> bool:
@@ -79,9 +100,20 @@ def _cookie_sources() -> Iterable[Path]:
     yield PROJECT_DIR / COOKIE_FILE_NAME
 
 
+def _warn_if_browser_cookie_env_present() -> None:
+    for var_name in LEGACY_BROWSER_COOKIE_ENV_VARS:
+        if os.environ.get(var_name):
+            print(
+                f"[cookies] WARNING: ignoring {var_name}; browser cookie extraction "
+                "is not supported in Render/Docker. Use YT_COOKIES_CONTENT or "
+                "/etc/secrets/cookies.txt instead."
+            )
+
+
 def init_cookies() -> str | None:
     """Create a writable cookies.txt copy for yt-dlp and return its path."""
 
+    _warn_if_browser_cookie_env_present()
     writable_cookie = DOWNLOAD_DIR / COOKIE_FILE_NAME
     if _valid_cookie_file(writable_cookie):
         print(f"[cookies] loaded: {writable_cookie}")
@@ -128,6 +160,16 @@ def init_cookies() -> str | None:
 COOKIE_FILE = init_cookies()
 
 
+def get_cookie_file() -> str | None:
+    """Return a valid cookies.txt path, recreating it if cleanup removed it."""
+
+    global COOKIE_FILE
+    if COOKIE_FILE and _valid_cookie_file(Path(COOKIE_FILE)):
+        return COOKIE_FILE
+    COOKIE_FILE = init_cookies()
+    return COOKIE_FILE
+
+
 def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
     """Build safe yt-dlp options for metadata and downloads."""
 
@@ -162,8 +204,14 @@ def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
         opts["youtube_skip_dash_manifest"] = True
         opts["youtube_skip_hls_manifest"] = True
 
-    if COOKIE_FILE and os.path.isfile(COOKIE_FILE):
-        opts["cookiefile"] = COOKIE_FILE
+    cookie_file = get_cookie_file()
+    if cookie_file:
+        opts["cookiefile"] = cookie_file
+
+    # Safety guard: this API must never ask yt-dlp to read browser profiles.
+    # Browser cookie extraction causes Render errors such as
+    # "could not find edge cookies database" because those DBs do not exist.
+    opts.pop("cookiesfrombrowser", None)
 
     if PROXY:
         opts["proxy"] = PROXY
@@ -237,7 +285,7 @@ def extract_metadata(url: str) -> dict:
             ],
         }
     except Exception as exc:
-        err = clean_error(exc)
+        err = friendly_error(exc)
         print(f"[metadata error] {err}")
         raise Exception(err) from exc
 
@@ -277,9 +325,7 @@ def _format_attempts(format_type: str, quality: str) -> list[str]:
 def download_video_task(job_id: str, url: str, format_type: str, quality: str) -> None:
     cleanup_downloads()
 
-    global COOKIE_FILE
-    if not COOKIE_FILE or not os.path.isfile(COOKIE_FILE):
-        COOKIE_FILE = init_cookies()
+    get_cookie_file()
 
     extension = ".mp3" if format_type == "audio" else ".mp4"
     output_template = str(DOWNLOAD_DIR / f"{job_id}.%(ext)s")
@@ -334,7 +380,7 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
             print(f"[download completed] {final_file}")
             return
         except Exception as exc:
-            last_error = clean_error(exc)
+            last_error = friendly_error(exc)
             print(f"[download retry] {last_error}")
             if "Requested format is not available" not in last_error:
                 break
