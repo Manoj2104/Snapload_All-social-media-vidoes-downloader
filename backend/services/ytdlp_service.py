@@ -170,6 +170,18 @@ def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
     if PROXY:
         opts["proxy"] = PROXY
 
+    if is_youtube:
+        opts["extractor_args"] = {
+            "youtube": {
+                # MULTI-CLIENT BYPASS (Critical for Render IPs)
+                "player_client": (
+                    ["web", "mweb", "ios", "android", "tv"]
+                    if is_download
+                    else ["ios", "android", "web", "mweb", "tv"]
+                ),
+            }
+        }
+
     return opts
 
 
@@ -290,6 +302,7 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
 
     # Detect platform
     is_youtube = is_youtube_url(url)
+    # Clean quality string (e.g., "1080p" -> "1080")
     q = str(quality).lower().replace("p", "").strip()
 
     # Select best format (Codec-agnostic to handle VP9/AV1 at 1080p)
