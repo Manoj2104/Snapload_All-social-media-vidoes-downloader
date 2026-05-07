@@ -155,6 +155,8 @@ def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
             "Accept-Language": "en-US,en;q=0.9",
             "Referer": "https://www.youtube.com/",
         },
+        # USE NODEJS FOR SIGNATURE DECRYPTION (Diversion Strategy)
+        "javascript_re": "node",
     }
 
     if HAS_IMPERSONATE:
@@ -225,7 +227,19 @@ def progress_hook(job_id: str):
     return hook
 
 
+def transform_youtube_url(url: str) -> str:
+    """Transform standard watch links to embed links to 'divert' bot detection."""
+    if "youtube.com/watch?v=" in url:
+        video_id = url.split("v=")[1].split("&")[0]
+        return f"https://www.youtube.com/embed/{video_id}"
+    elif "youtu.be/" in url:
+        video_id = url.split("youtu.be/")[1].split("?")[0]
+        return f"https://www.youtube.com/embed/{video_id}"
+    return url
+
+
 def extract_metadata(url: str) -> dict:
+    url = transform_youtube_url(url)
     youtube = is_youtube_url(url)
     opts = get_metadata_opts(youtube)
 
@@ -292,6 +306,7 @@ def _format_attempts(format_type: str, quality: str) -> list[str]:
 
 def download_video_task(job_id: str, url: str, format_type: str, quality: str) -> None:
     """Task to download video or audio with optimized format selection and merge logic."""
+    url = transform_youtube_url(url)
     cleanup_downloads()
 
     global COOKIE_FILE
