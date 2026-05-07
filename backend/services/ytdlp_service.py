@@ -143,7 +143,9 @@ def get_common_opts(is_youtube: bool = True, is_download: bool = False) -> dict:
         "extractor_retries": 10,
         "sleep_interval": 1,
         "max_sleep_interval": 3,
-        "cached_player_responses": False,
+
+        "prefer_insecure": True,
+
         "http_headers": {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -281,29 +283,133 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str) -
     if not COOKIE_FILE or not os.path.isfile(COOKIE_FILE):
         COOKIE_FILE = init_cookies()
 
-    extension = ".mp3" if format_type == "audio" else ".mp4"
-    output_template = str(DOWNLOAD_DIR / f"{job_id}.%(ext)s")
-    youtube = is_youtube_url(url)
+    # =====================================================
+    # OUTPUT
+    # =====================================================
 
-    print(f"[download request] type={format_type} quality={quality}")
+    ext = (
+        "mp3"
+        if format_type == "audio"
+        else "mp4"
+    )
 
-    last_error = "Download failed"
-    for fmt in _format_attempts(format_type, quality):
-        print(f"[download] format => {fmt}")
-        try:
-            opts = get_common_opts(youtube, is_download=True)
-            opts.update(
-                {
-                    "format": fmt,
-                    "outtmpl": output_template,
-                    "progress_hooks": [progress_hook(job_id)],
-                    "nopart": True,
-                    "continuedl": True,
-                    "overwrites": True,
-                    "noplaylist": True,
-                    "extract_flat": False,
-                }
-            )
+    output_template = os.path.join(
+
+        DOWNLOAD_DIR,
+
+        f"{job_id}.%(ext)s"
+    )
+
+    # =====================================================
+    # DETECT YOUTUBE
+    # =====================================================
+
+    is_youtube = any(
+
+        x in url.lower()
+
+        for x in [
+
+            "youtube.com",
+
+            "youtu.be"
+        ]
+    )
+
+    # =====================================================
+    # FINAL CLOUD SAFE FORMAT FIX
+    # =====================================================
+
+    print(
+        f"[download request] "
+        f"type={format_type} "
+        f"quality={quality}"
+    )
+
+    # Clean quality string (e.g., "1080p" -> "1080")
+    q = str(quality).lower().replace("p", "")
+
+    if format_type == "audio":
+
+        # safest audio
+        fmt = "140/251/bestaudio/best"
+
+    else:
+
+        # ONLY PROGRESSIVE STREAMS FOR RENDER STABILITY
+        # 22 = 720p mp4 progressive
+        # 18 = 360p mp4 progressive
+
+        if q == "1080":
+
+            fmt = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/22/18/best[height<=1080][ext=mp4]/best"
+
+        elif q == "720":
+
+            fmt = "22/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/18/best[height<=720][ext=mp4]/best"
+
+        elif q in ["480", "360"]:
+
+            fmt = "18/best[height<=480][ext=mp4]/best"
+
+        else:
+
+            fmt = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/22/18/best"
+
+    print(
+        f"[download] format => {fmt}"
+    )
+
+    last_error = None
+
+    # =====================================================
+    # DOWNLOAD
+    # =====================================================
+
+    try:
+
+        opts = get_common_opts(
+
+            is_youtube,
+
+            is_download=True
+        )
+
+        opts.update({
+
+            "format": fmt,
+
+            "outtmpl":
+            output_template,
+
+            "progress_hooks": [
+
+                progress_hook(job_id)
+            ],
+
+            "nopart": True,
+
+            "continuedl": True,
+
+            "overwrites": True,
+
+            "noplaylist": True,
+
+            "extract_flat": False,
+
+            "merge_output_format": (
+
+                "mp4"
+
+                if format_type != "audio"
+
+                else None
+            ),
+        })
+
+        # =================================================
+        # AUDIO POST PROCESS
+        # =================================================
 
             if format_type == "audio":
                 opts["postprocessors"] = [
