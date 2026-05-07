@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { motion, useAnimation, AnimatePresence } from 'framer-motion';
-import { Search, Download, MousePointer2, Shield, Zap, CheckCircle, Loader2, X, Play, Video, Music, AlertCircle } from 'lucide-react';
+import { Search, Download, MousePointer2, Shield, Zap, CheckCircle, Loader2, X, Play, Video, Music, AlertCircle, ClipboardPaste } from 'lucide-react';
 
 const WORDS = ['YouTube','Instagram','TikTok','Twitter','Facebook','Vimeo'];
 const QUALITIES = ['4K','1080p','720p','480p','MP3'] as const;
@@ -63,6 +63,25 @@ export default function HeroDownloader() {
       setErrorMsg(err.message);
       setPhase('error');
     }
+  };
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) setUrl(text);
+    } catch (err) {
+      console.error('Clipboard paste failed:', err);
+      // Fallback: focus the input so user can manual paste
+      const input = document.querySelector('input[placeholder="Paste video link..."]') as HTMLInputElement;
+      if (input) input.focus();
+    }
+  };
+
+  const handleClear = () => {
+    setUrl('');
+    setErrorMsg('');
+    setPhase('idle');
+    setMetadata(null);
   };
 
   const startDownload = async () => {
@@ -288,7 +307,7 @@ export default function HeroDownloader() {
         <div className="relative">
           <MousePointer2 className="text-blue-600 fill-blue-600 drop-shadow-xl" size={26} />
           <motion.div animate={{ x: [0, 1, -1, 0], y: [0, -1, 1, 0] }} transition={{ duration: 0.1, repeat: Infinity }} className="absolute inset-0" />
-          <div className="absolute top-8 left-4 px-3 py-1 bg-white border border-blue-100 rounded-lg shadow-lg text-[8px] font-bold text-blue-600 whitespace-nowrap">
+          <div className="absolute top-8 left-4 px-2 py-1 bg-white/90 backdrop-blur-sm border border-blue-100 rounded-lg shadow-xl text-[7px] font-bold text-blue-600/60 whitespace-nowrap pointer-events-none">
             Ghost {ghostState === 'clicking' ? 'Analyzing...' : 'Exploring'}
           </div>
         </div>
@@ -310,62 +329,69 @@ export default function HeroDownloader() {
         </motion.p>
 
         <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="relative max-w-3xl mx-auto">
-          <div className="relative bg-white border border-blue-100/50 rounded-[2rem] md:rounded-[2.5rem] p-3 md:p-6 shadow-[0_32px_64px_-16px_rgba(37,99,235,0.08)]">
-            <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-center">
-              <div className="w-full flex items-center gap-3 bg-slate-50 rounded-xl md:rounded-2xl px-4 md:px-6 py-3 md:py-5 border border-transparent focus-within:border-blue-400 transition-all duration-500 relative">
-                <Search size={20} className="text-slate-300 shrink-0" />
+          <div className="relative bg-white/80 backdrop-blur-xl border border-blue-100/50 rounded-[2rem] md:rounded-[2.5rem] p-2 md:p-3 shadow-[0_32px_64px_-16px_rgba(37,99,235,0.12)]">
+            <div className="flex flex-col md:flex-row gap-2 md:gap-3 items-center">
+              <div className="w-full flex items-center gap-2 md:gap-3 bg-white rounded-2xl md:rounded-[1.8rem] px-4 md:px-6 py-3 md:py-4 border border-slate-100 focus-within:border-blue-400 focus-within:shadow-[0_0_20px_rgba(37,99,235,0.06)] transition-all duration-500 relative">
+                <Search size={18} className="text-slate-300 shrink-0" />
                 <input 
                   value={url} 
                   onChange={e => setUrl(e.target.value)} 
                   onKeyDown={e => e.key === 'Enter' && analyze()} 
                   placeholder="Paste video link..." 
-                  className="bg-transparent flex-1 text-blue-950 placeholder:text-slate-300 outline-none font-bold text-sm md:text-base pr-16 md:pr-20" 
+                  className="bg-transparent flex-1 text-blue-950 placeholder:text-slate-300 outline-none font-bold text-sm md:text-base pr-40 md:pr-48" 
                 />
                 
-                <AnimatePresence>
-                  {url && (
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.8, x: 20 }}
-                      animate={{ opacity: 1, scale: 1, x: 0 }}
-                      exit={{ opacity: 0, scale: 0.8, x: 20 }}
-                      className="absolute right-4 flex items-center gap-2 px-3 py-1.5 bg-white border border-blue-100 rounded-xl shadow-sm"
-                    >
-                      {url.toLowerCase().includes('youtube') || url.toLowerCase().includes('youtu.be') ? (
-                        <>
-                          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                          <span className="text-[10px] font-black text-red-600 uppercase tracking-tight">YouTube</span>
-                        </>
-                      ) : url.toLowerCase().includes('instagram') ? (
-                        <>
-                          <div className="w-2 h-2 bg-pink-500 rounded-full animate-pulse" />
-                          <span className="text-[10px] font-black text-pink-600 uppercase tracking-tight">Instagram</span>
-                        </>
-                      ) : url.toLowerCase().includes('tiktok') ? (
-                        <>
-                          <div className="w-2 h-2 bg-black rounded-full animate-pulse" />
-                          <span className="text-[10px] font-black text-black uppercase tracking-tight">TikTok</span>
-                        </>
-                      ) : url.toLowerCase().includes('twitter') || url.toLowerCase().includes('x.com') ? (
-                        <>
-                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
-                          <span className="text-[10px] font-black text-blue-500 uppercase tracking-tight">Twitter/X</span>
-                        </>
-                      ) : url.toLowerCase().includes('facebook') ? (
-                        <>
-                          <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
-                          <span className="text-[10px] font-black text-blue-700 uppercase tracking-tight">Facebook</span>
-                        </>
-                      ) : (
-                        <>
-                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                          <span className="text-[10px] font-black text-blue-600 uppercase tracking-tight">Platform</span>
-                        </>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <div className="absolute right-2 md:right-3 flex items-center gap-1 md:gap-1.5">
+                  <button
+                    onClick={handlePaste}
+                    className="flex items-center gap-1 px-2 md:px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 hover:bg-blue-600 hover:text-white transition-all text-[9px] md:text-[10px] font-black uppercase tracking-tight shadow-sm active:scale-95"
+                    title="Paste link"
+                  >
+                    <ClipboardPaste size={14} />
+                    <span className="hidden sm:inline">Paste</span>
+                  </button>
+
+                  <AnimatePresence>
+                    {url && (
+                      <>
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          onClick={handleClear}
+                          className="p-1.5 bg-slate-50 hover:bg-red-50 hover:text-red-500 rounded-lg text-slate-400 transition-colors active:scale-90"
+                          title="Clear"
+                        >
+                          <X size={14} />
+                        </motion.button>
+
+                        <motion.div 
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 10 }}
+                          className="hidden xs:flex items-center gap-1 px-1.5 md:px-2.5 py-1 bg-blue-600 rounded-lg md:rounded-xl shadow-lg shadow-blue-200"
+                        >
+                          <div className="w-1 h-1 md:w-1.5 md:h-1.5 bg-white rounded-full animate-pulse" />
+                          <span className="text-[8px] md:text-[9px] font-black text-white uppercase tracking-tight truncate max-w-[50px] md:max-w-none">
+                            {url.toLowerCase().includes('youtube') || url.toLowerCase().includes('youtu.be') ? 'YouTube' : 
+                             url.toLowerCase().includes('instagram') ? 'Instagram' :
+                             url.toLowerCase().includes('tiktok') ? 'TikTok' :
+                             url.toLowerCase().includes('twitter') || url.toLowerCase().includes('x.com') ? 'X/Twitter' :
+                             url.toLowerCase().includes('facebook') ? 'Facebook' : 'Media'}
+                          </span>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
-              <motion.button onClick={analyze} disabled={!url.trim() || phase === 'analyzing'} animate={isGhostHover ? { scale: 0.95, backgroundColor: '#1d4ed8' } : { scale: 1 }} className="w-full md:w-auto bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-black px-10 py-5 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-blue-200 transition-all">
+              <motion.button 
+                onClick={analyze} 
+                disabled={!url.trim() || phase === 'analyzing'} 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full md:w-auto bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-black px-8 md:px-10 py-4 md:py-5 rounded-2xl flex items-center justify-center gap-3 shadow-[0_20px_40px_-10px_rgba(29,78,216,0.3)] hover:shadow-[0_25px_50px_-12px_rgba(29,78,216,0.4)] transition-all"
+              >
                 {phase === 'analyzing' ? <Loader2 size={22} className="animate-spin" /> : <Download size={22} />}
                 Analyze
               </motion.button>
