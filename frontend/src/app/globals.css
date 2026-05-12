@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --blue-dark:   #0F172A;
+  --blue-mid:    #1E3A8A;
+  --blue-brand:  #2563EB;
+  --blue-light:  #DBEAFE;
+  --blue-pale:   #EFF6FF;
+  --white:       #FFFFFF;
+  --gray-50:     #F8FAFC;
+  --gray-100:    #F1F5F9;
+  --gray-200:    #E2E8F0;
+  --gray-400:    #94A3B8;
+  --gray-600:    #475569;
+  --gray-800:    #1E293B;
+  --success:     #059669;
+  --radius-pill: 999px;
+  --radius-card: 20px;
+}
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body {
+    background: #fff;
+    color: var(--blue-dark);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+}
+
+/* ─── Animated background orbs ─────────────── */
+.bg-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.12;
+  pointer-events: none;
+  animation: orb-float 8s ease-in-out infinite;
+}
+.bg-orb-1 { width: 600px; height: 600px; background: #2563EB; top: -200px; right: -100px; animation-delay: 0s; }
+.bg-orb-2 { width: 400px; height: 400px; background: #1E3A8A; bottom: -100px; left: -100px; animation-delay: 3s; }
+.bg-orb-3 { width: 300px; height: 300px; background: #3B82F6; top: 50%; left: 50%; animation-delay: 5s; }
+
+@keyframes orb-float {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50%       { transform: translateY(-30px) scale(1.05); }
+}
+
+/* ─── Grid dot pattern ──────────────────────── */
+.dot-grid {
+  background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.5;
+}
+
+/* ─── Particle canvas ───────────────────────── */
+.particle-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ─── Shimmer animation for URL bar ────────── */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: shimmer 2s infinite;
+}
+
+/* ─── Pulse ring ────────────────────────────── */
+@keyframes pulse-ring {
+  0%   { transform: scale(0.9); opacity: 0.7; }
+  70%  { transform: scale(1.3); opacity: 0; }
+  100% { transform: scale(1.3); opacity: 0; }
+}
+.pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+
+/* ─── Typing cursor ─────────────────────────── */
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.blink { animation: blink 0.8s step-end infinite; }
+
+/* ─── Float animation ───────────────────────── */
+@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.float { animation: float 3s ease-in-out infinite; }
+
+/* ─── Progress bar ─────────────────────────── */
+@keyframes progress-fill {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
+/* ─── Marquee ──────────────────────────────── */
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.marquee-track { animation: marquee 30s linear infinite; }
+.marquee-track:hover { animation-play-state: paused; }
+
+/* ─── Scroll reveal (JS adds .revealed) ─────── */
+.reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.65s ease, transform 0.65s ease; }
+.reveal.revealed { opacity: 1; transform: translateY(0); }
+.reveal-left { opacity: 0; transform: translateX(-28px); transition: opacity 0.65s ease, transform 0.65s ease; }
+.reveal-left.revealed { opacity: 1; transform: translateX(0); }
+.reveal-right { opacity: 0; transform: translateX(28px); transition: opacity 0.65s ease, transform 0.65s ease; }
+.reveal-right.revealed { opacity: 1; transform: translateX(0); }
+
+/* ─── No scrollbar ──────────────────────────── */
+.scrollbar-hide::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.scrollbar-hide,
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── Reduced motion ────────────────────────── */
+/* ── Mask Fade for strips ──────────────────── */
+.mask-fade {
+  mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+}
+
+@keyframes shimmer-slow {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer-text {
+  background: linear-gradient(90deg, #94a3b8 0%, #ffffff 50%, #94a3b8 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer-slow 6s linear infinite;
+}
