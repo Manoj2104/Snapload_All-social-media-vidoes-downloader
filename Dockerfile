@@ -1,19 +1,4 @@
-# Stage 1: Build Frontend
-FROM node:20-slim AS frontend-builder
-WORKDIR /app/frontend
-
-# Install dependencies first (cached layer)
-COPY frontend/package*.json ./
-RUN npm install
-
-# Copy source code and build
-COPY frontend/ ./
-
-# Force fresh build by adding a cache-busting ARG
-ARG CACHEBUST=1
-RUN npm run build
-
-# Stage 2: Final Production Image
+# SnapLoad Backend - Python only (Frontend hosted on Netlify)
 FROM python:3.10-slim
 WORKDIR /app
 
@@ -23,17 +8,11 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY backend/requirements.txt ./backend/
-RUN pip install --no-cache-dir -r backend/requirements.txt
-
-# Copy the freshly-built frontend from Stage 1
-COPY --from=frontend-builder /app/frontend/out ./frontend/out
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend source code
-COPY backend/ ./backend/
-
-# Set working directory to backend
-WORKDIR /app/backend
+COPY backend/ ./
 
 # Expose port
 EXPOSE 8000
