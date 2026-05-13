@@ -19,9 +19,9 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install system deps — FFmpeg is required for yt-dlp merging
+# Install system deps — FFmpeg is required for yt-dlp merging, nodejs for YouTube n-sig decryption
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg curl && \
+    apt-get install -y --no-install-recommends ffmpeg curl nodejs && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies

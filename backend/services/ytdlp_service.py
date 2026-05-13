@@ -5,6 +5,7 @@ import re
 import time
 import shutil
 from services.redis_service import redis_client
+from yt_dlp.networking.impersonate import ImpersonateTarget
 
 DOWNLOAD_DIR = os.path.abspath("downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -19,7 +20,8 @@ def extract_metadata(url: str):
         'nocheckcertificate': True,
         'source_address': '0.0.0.0',
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'impersonate': 'chrome',
+        'impersonate': ImpersonateTarget(client='chrome'),
+        'js_runtimes': {'node': {}},
     }
 
     attempts = [{}]
@@ -130,7 +132,8 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
         'buffersize': 1024 * 1024,
         'socket_timeout': 30,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'impersonate': 'chrome',
+        'impersonate': ImpersonateTarget(client='chrome'),
+        'js_runtimes': {'node': {}},
         'merge_output_format': 'mp4' if format_type != 'audio' else None,
         'nopart': True,
         'fixup': 'warn',
