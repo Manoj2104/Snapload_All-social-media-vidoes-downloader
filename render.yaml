@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: snapload
+    runtime: docker
+    plan: free
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: PYTHON_VERSION
+        value: 3.10
+      - key: NEXT_PUBLIC_API_URL
+        value: /api
