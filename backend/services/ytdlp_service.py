@@ -21,11 +21,7 @@ def extract_metadata(url: str):
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     }
 
-    attempts = [
-        {}, # No cookies
-        {'cookiesfrombrowser': ('chrome',)},
-        {'cookiesfrombrowser': ('edge',)},
-    ] if is_youtube else [{}]
+    attempts = [{}]
 
     last_error = None
     for attempt_opts in attempts:
@@ -133,7 +129,6 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
         'buffersize': 1024 * 1024,
         'socket_timeout': 30,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'js_runtimes': {'node': {}},
         'merge_output_format': 'mp4' if format_type != 'audio' else None,
         'nopart': True,
         'fixup': 'warn',
@@ -150,11 +145,7 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
     }
 
     is_youtube = 'youtube.com' in url or 'youtu.be' in url
-    attempts = [
-        {}, # No cookies
-        {'cookiesfrombrowser': ('chrome',)},
-        {'cookiesfrombrowser': ('edge',)},
-    ] if is_youtube else [{}]
+    attempts = [{}]
 
     success = False
     last_error = None
