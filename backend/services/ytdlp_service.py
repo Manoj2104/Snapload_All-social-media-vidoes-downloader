@@ -19,6 +19,7 @@ def extract_metadata(url: str):
         'nocheckcertificate': True,
         'source_address': '0.0.0.0',
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'impersonate': 'chrome',
     }
 
     attempts = [{}]
@@ -29,8 +30,8 @@ def extract_metadata(url: str):
         if is_youtube:
             opts['extractor_args'] = {
                 'youtube': {
-                    'player_client': ['web_embedded', 'ios', 'android'],
-                    'skip': ['hls', 'dash']
+                    'player_client': ['android', 'ios'],
+                    'player_skip': ['webpage', 'configs', 'js']
                 }
             }
         
@@ -129,6 +130,7 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
         'buffersize': 1024 * 1024,
         'socket_timeout': 30,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'impersonate': 'chrome',
         'merge_output_format': 'mp4' if format_type != 'audio' else None,
         'nopart': True,
         'fixup': 'warn',
@@ -152,6 +154,13 @@ def download_video_task(job_id: str, url: str, format_type: str, quality: str):
 
     for attempt in attempts:
         opts = {**ydl_opts_base, **attempt}
+        if is_youtube:
+            opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android', 'ios'],
+                    'player_skip': ['webpage', 'configs', 'js']
+                }
+            }
         try:
             print(f"🚀 ATTEMPT DOWNLOAD: {attempt}")
             with yt_dlp.YoutubeDL(opts) as ydl:
