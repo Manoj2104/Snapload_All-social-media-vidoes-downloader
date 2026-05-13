@@ -1,0 +1,9 @@
+node_modules
+venv
+.venv
+__pycache__
+backend/downloads
+backend/temp_cookies
+.git
+.next
+out
