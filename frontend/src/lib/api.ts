@@ -2,18 +2,22 @@ const API_BASE = '/api';
 
 export const api = {
   analyze: async (url: string) => {
-    const res = await fetch(`${API_BASE}/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      // Remove ANSI escape codes from yt-dlp error string
-      const detail = typeof errorData.detail === 'string' ? errorData.detail.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '') : null;
-      throw new Error(detail || 'Failed to analyze URL');
+    try {
+      const res = await fetch(`${API_BASE}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const detail = typeof errorData.detail === 'string' ? errorData.detail.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '') : null;
+        throw new Error(detail || `Server Error: ${res.status}`);
+      }
+      return res.json();
+    } catch (err) {
+      alert(`DEBUG ERROR: ${err.message}\nAPI_URL: ${API_BASE}/analyze`);
+      throw err;
     }
-    return res.json();
   },
 
   download: async (url: string, format: string, quality: string) => {
