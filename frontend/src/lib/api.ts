@@ -1,6 +1,4 @@
-const API_BASE = (typeof window !== 'undefined' && window.location.hostname !== 'localhost') 
-  ? `${window.location.origin}/api` 
-  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api');
+const API_BASE = '/api';
 
 export const api = {
   analyze: async (url: string) => {
